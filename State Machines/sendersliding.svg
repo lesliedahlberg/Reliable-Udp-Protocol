@@ -1,0 +1,18 @@
+<?xml version="1.0" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+
+<svg width="800" height="600" version="1.1" xmlns="http://www.w3.org/2000/svg">
+	<ellipse stroke="black" stroke-width="1" fill="none" cx="382.5" cy="277.5" rx="30" ry="30"/>
+	<text x="363.5" y="283.5" font-family="Times New Roman" font-size="20">Wait</text>
+	<ellipse stroke="black" stroke-width="1" fill="none" cx="382.5" cy="277.5" rx="24" ry="24"/>
+	<path stroke="black" stroke-width="1" fill="none" d="M 358.4,259.832 A 22.5,22.5 0 1 1 381.864,247.624"/>
+	<polygon fill="black" stroke-width="1" points="381.864,247.624 387.994,240.452 378.104,238.972"/>
+	<path stroke="black" stroke-width="1" fill="none" d="M 389.619,248.478 A 22.5,22.5 0 1 1 409.867,265.497"/>
+	<polygon fill="black" stroke-width="1" points="409.867,265.497 418.836,268.421 416.425,258.716"/>
+	<path stroke="black" stroke-width="1" fill="none" d="M 412.202,274.215 A 22.5,22.5 0 1 1 403.174,299.077"/>
+	<polygon fill="black" stroke-width="1" points="403.174,299.077 403.51,308.505 411.796,302.907"/>
+	<path stroke="black" stroke-width="1" fill="none" d="M 395.725,304.297 A 22.5,22.5 0 1 1 369.275,304.297"/>
+	<polygon fill="black" stroke-width="1" points="369.275,304.297 360.527,307.83 368.618,313.708"/>
+	<path stroke="black" stroke-width="1" fill="none" d="M 360.929,298.181 A 22.5,22.5 0 1 1 352.964,272.958"/>
+	<polygon fill="black" stroke-width="1" points="352.964,272.958 346.961,265.681 343.792,275.165"/>
+</svg>

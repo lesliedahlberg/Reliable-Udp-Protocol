@@ -1,0 +1,12 @@
+<?xml version="1.0" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+
+<svg width="800" height="600" version="1.1" xmlns="http://www.w3.org/2000/svg">
+	<ellipse stroke="black" stroke-width="1" fill="none" cx="382.5" cy="277.5" rx="30" ry="30"/>
+	<text x="363.5" y="283.5" font-family="Times New Roman" font-size="20">Wait</text>
+	<ellipse stroke="black" stroke-width="1" fill="none" cx="382.5" cy="277.5" rx="24" ry="24"/>
+	<path stroke="black" stroke-width="1" fill="none" d="M 353.95,286.325 A 22.5,22.5 0 1 1 358.129,260.207"/>
+	<polygon fill="black" stroke-width="1" points="358.129,260.207 356.022,251.012 348.94,258.071"/>
+	<path stroke="black" stroke-width="1" fill="none" d="M 404.938,257.763 A 22.5,22.5 0 1 1 411.814,283.304"/>
+	<polygon fill="black" stroke-width="1" points="411.814,283.304 417.5,290.832 421.072,281.492"/>
+</svg>

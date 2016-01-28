@@ -1,0 +1,39 @@
+<?xml version="1.0" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+
+<svg width="800" height="600" version="1.1" xmlns="http://www.w3.org/2000/svg">
+	<ellipse stroke="black" stroke-width="1" fill="none" cx="366.5" cy="60.5" rx="30" ry="30"/>
+	<text x="338.5" y="66.5" font-family="Times New Roman" font-size="20">Closed</text>
+	<ellipse stroke="black" stroke-width="1" fill="none" cx="366.5" cy="60.5" rx="24" ry="24"/>
+	<ellipse stroke="black" stroke-width="1" fill="none" cx="366.5" cy="200.5" rx="30" ry="30"/>
+	<text x="341.5" y="206.5" font-family="Times New Roman" font-size="20">Listen</text>
+	<ellipse stroke="black" stroke-width="1" fill="none" cx="366.5" cy="330.5" rx="30" ry="30"/>
+	<text x="339.5" y="336.5" font-family="Times New Roman" font-size="20">synrcv</text>
+	<ellipse stroke="black" stroke-width="1" fill="none" cx="368.5" cy="454.5" rx="30" ry="30"/>
+	<text x="350.5" y="460.5" font-family="Times New Roman" font-size="20">EST</text>
+	<ellipse stroke="black" stroke-width="1" fill="none" cx="528.5" cy="36.5" rx="30" ry="30"/>
+	<text x="513.5" y="42.5" font-family="Times New Roman" font-size="20">J=3</text>
+	<polygon stroke="black" stroke-width="1" points="366.5,90.5 366.5,170.5"/>
+	<polygon fill="black" stroke-width="1" points="366.5,170.5 371.5,162.5 361.5,162.5"/>
+	<text x="299.5" y="136.5" font-family="Times New Roman" font-size="20">Listen/-</text>
+	<polygon stroke="black" stroke-width="1" points="366.5,230.5 366.5,300.5"/>
+	<polygon fill="black" stroke-width="1" points="366.5,300.5 371.5,292.5 361.5,292.5"/>
+	<text x="253.5" y="271.5" font-family="Times New Roman" font-size="20">Syn/ syn+ack</text>
+	<path stroke="black" stroke-width="1" fill="none" d="M 345.767,352.02 A 22.5,22.5 0 1 1 336.807,327.133"/>
+	<text x="52.5" y="367.5" font-family="Times New Roman" font-size="20">Timeout, if j&gt;0/syn+ack, j=j-1</text>
+	<polygon fill="black" stroke-width="1" points="336.807,327.133 330.52,320.1 327.73,329.703"/>
+	<polygon stroke="black" stroke-width="1" points="366.984,360.496 368.016,424.504"/>
+	<polygon fill="black" stroke-width="1" points="368.016,424.504 372.887,416.424 362.888,416.586"/>
+	<text x="322.5" y="398.5" font-family="Times New Roman" font-size="20">ack/-</text>
+	<polygon stroke="black" stroke-width="1" points="366.5,300.5 366.5,230.5"/>
+	<polygon fill="black" stroke-width="1" points="366.5,230.5 361.5,238.5 371.5,238.5"/>
+	<text x="371.5" y="271.5" font-family="Times New Roman" font-size="20">reset</text>
+	<polygon stroke="black" stroke-width="1" points="366.5,300.5 366.5,230.5"/>
+	<polygon fill="black" stroke-width="1" points="366.5,230.5 361.5,238.5 371.5,238.5"/>
+	<polygon stroke="black" stroke-width="1" points="366.5,300.5 366.5,230.5"/>
+	<polygon fill="black" stroke-width="1" points="366.5,230.5 361.5,238.5 371.5,238.5"/>
+	<text x="371.5" y="271.5" font-family="Times New Roman" font-size="20">        , if j=0 timeout/ error, j=3</text>
+	<polygon stroke="black" stroke-width="1" points="366.5,170.5 366.5,90.5"/>
+	<polygon fill="black" stroke-width="1" points="366.5,90.5 361.5,98.5 371.5,98.5"/>
+	<text x="371.5" y="136.5" font-family="Times New Roman" font-size="20">close/ -</text>
+</svg>

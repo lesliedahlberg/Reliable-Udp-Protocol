@@ -3,6 +3,7 @@
 #DEFINE WINDOW 512;
 #DEFINE WINDOW_MODULO 1024;
 
+/* PACKET */
 typedef struct {
   int ACK;
   int FIN;
@@ -11,17 +12,23 @@ typedef struct {
   char data[32];
 } PACKET;
 
+/* INCOMING BUFFER */
 typedef struct {
+  int seq_0;
   int seq_1;
   int seq_2;
   int last_ack;
   PACKET packet[MODULO];
 } BUFFER;
 
-BUFFER server_buf;
-server_buf.ack_seq = 0;
-server_buf.buf_seq = 0;
 
+/* INIT. INCOMING BUFFER */
+BUFFER server_buf;
+server_buf.seq_0 = 0;
+server_buf.seq_1 = 0;
+server_buf.seq_2 = 0;
+
+/* MODULO NEXT SEQ. IN INCOMING BUFFER */
 int next_seq(int seq){
   if(seq+1 > MODULO - 1){
     return 0;
@@ -30,6 +37,7 @@ int next_seq(int seq){
   }
 }
 
+/* MODULO NEXT ACK. IN INCOMING SLIDING WINDOW */
 int next_ack(int ack){
   if(ack+1 > WINDOW_SEQ - 1){
     return 0;
@@ -38,12 +46,14 @@ int next_ack(int ack){
   }
 }
 
+/* TIMER */
 typedef struct {
     int on;
     clock_t start;
     clock_t length;
 } TIMER;
 
+/* CHECK TIMER */
 int timeout(TIMER t){
     if(t.start-clock() >= t.length){
         return 1;
@@ -52,10 +62,25 @@ int timeout(TIMER t){
     }
 }
 
+void reset_timer(TIMER *t){
+  t->on = -1;
+}
+
+void decrease_timer(TIMER *t){
+  if(t->on > 0){
+    t->on--;
+  }else{
+    t->on = 0;
+  }
+
+}
+
+/* MILLISECONDS TO CLOCK TIME */
 clock_t clock_time(int milli_seconds){
     return ((float) milli_seconds)/1000f*CLOCKS_PER_SEC;
 }
 
+/* INPUTs */
 typedef enum {
   NONE,
   CONNECT,
@@ -70,6 +95,7 @@ typedef enum {
   BAD_PACKET,
 } INPUT;
 
+/* STATES */
 typedef enum {
   CLOSED,
   SYN_SENT,
@@ -86,9 +112,11 @@ typedef enum {
   LAST_ACK
 } STATE;
 
+/* INIT STATE MACHINE VARIABLES */
 STATE state = CLOSED;
 INPUT input = NONE;
 
+/* SET TIMERS */
 TIMER syn_sent_timer;
 syn_sent_timer.on = -1;
 

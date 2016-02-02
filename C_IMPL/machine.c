@@ -200,6 +200,12 @@ void start(){
     ack_buf.seq_1 = 0;
     ack_buf.seq_2 = 0;
 
+    int i = 0;
+    while (i < MODULO) {
+      client_established[i].on = -1;
+      i++;
+    }
+
     /* INIT STATE MACHINE VARIABLES */
     state = CLOSED;
     input = NONE;
@@ -396,20 +402,27 @@ void STATE_MACHINE(){
                 i = client_buf.seq_2;
                 while(i < client_buf.seq_1){
                   if(timeout(client_established[i]) == 1){
+                    printf("PACK_TIMEOUT: %d; ON=%d;\n", i, client_established[i].on);
+
                     client_buf.seq_1 = i;
-                    int j;
-                    j = client_buf.seq_2;
-                    while(j < client_buf.seq_1){
-                      reset_timer(&client_established[j]);
-                    }
                   }
+
                   i++;
                 }
                 if(client_buf.seq_0 > client_buf.seq_1 /*&& window_size() < window()*/){
                   OUT_send_packet(client_buf.packet[client_buf.seq_1]);
-                  client_established[client_buf.seq_1].on = 1;
+                  if(client_established[client_buf.seq_1].on == -1){
+                    client_established[client_buf.seq_1].on = 3;
+                  }else{
+                    decrease_timer(&client_established[client_buf.seq_1]);
+                    if(client_established[client_buf.seq_1].on == 0){
+                      input = CLOSE;
+                      printf("PACKET: ACK no recieved 3X in a row --> CLOSE\n");
+                    }
+                  }
                   client_established[client_buf.seq_1].start = clock();
                   client_established[client_buf.seq_1].length = clock_time(10);
+                  printf("SET TIMER: %d; ON=%d;\n", client_buf.seq_1, client_established[client_buf.seq_1].on);
                   client_buf.seq_1 = next_seq(client_buf.seq_1);
 
 

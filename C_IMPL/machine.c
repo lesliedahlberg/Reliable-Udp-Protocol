@@ -206,7 +206,7 @@ void STATE_MACHINE(){
                     OUT_send_ack();
                     //GO TO: PRE_ESTABLISHED
                     state = PRE_ESTABLISHED;
-                    syn_sent_time.on = -1;
+                    reset_timer(&syn_sent_time);
                 }else{
                     if(syn_sent_timer.on == -1){
                         syn_sent_timer.on = 3;
@@ -214,13 +214,12 @@ void STATE_MACHINE(){
                         syn_sent_timer.length = clock_time(10);
                     }else{
                         if(timeout(syn_sent_timer) == 1){
-                            if(syn_sent_time.on > 0){
-                                OUT_send_syn();
-                                syn_sent_timer.on--;
-                            }else{
-                                syn_sent_time.on = -1;
-                                state = CLOSED;
-                            }
+                            OUT_send_syn();
+                            syn_sent_timer.on--;
+                        }
+                        if(syn_sent_time.on == 0){
+                            reset_timer(&syn_sent_time);
+                            state = CLOSED;
                         }
                     }
                 }
@@ -239,7 +238,7 @@ void STATE_MACHINE(){
                     }else{
                         if(timeout(pre_established_timer) == 1){
                             state = ESTABLISHED_CLIENT;
-                            pre_established_timer.on = -1;
+                            reset_timer(&pre_established_timer);
                         }
                     }
                 }
@@ -269,7 +268,7 @@ void STATE_MACHINE(){
                   if(ack_buf.seq_1 > ack_buf.seq_2 || ack_buf.seq_1 < ack_buf.seq_2){
                     if(PACKET_ACK(ack_buf.seq_2) == client_buf.last_ack+1){
                       client_buf.last_ack = next_ack(client_buf.last_ack);
-                      client_established[seq_2].on = -1;
+                      reset_timer(&client_established[seq_2]);
                       client_buf.seq_2 = next_seq(client_buf.seq_2);
                     }
                   }
@@ -295,11 +294,11 @@ void STATE_MACHINE(){
                 if(input == ACK){
                   input = NONE;
                   state = ESTABLISHED_SERVER;
-                  syn_recieved_timer.on = -1;
+                  reset_timer(&syn_recieved_timer);
                 }else if(input == RESET){
                   input = NONE;
                   state = LISTEN;
-                  syn_recieved_timer.on = -1;
+                  reset_timer(&syn_recieved_timer);
                 }else{
                   if(syn_recieved_timer.on == -1){
                     syn_recieved_timer.on = 3;
@@ -307,13 +306,12 @@ void STATE_MACHINE(){
                     syn_recieved_timer.length = clock_time(10);
                   }else{
                     if(timeout(syn_recieved_timer) == 1){
-                      if(syn_recieved_timer.on > 0){
                         OUT_send_syn_ack();
                         syn_recieved_timer.on--;
-                      }else{
-                        state = LISTEN;
-                        syn_recieved_timer.on = -1;
-                      }
+                    }
+                    if(syn_recieved_timer.on == 0){
+                      state = LISTEN;
+                      reset_timer(&syn_recieved_timer);
                     }
                   }
                 }
@@ -456,6 +454,7 @@ void STATE_MACHINE(){
                   }
                   if(last_ack_timer.on == 0){
                     state = CLOSED;
+                    reset_timer(&last_ack_timer);
                   }
                 }
               }

@@ -19,6 +19,7 @@ pthread_t tid;
 
 /* PACKET */
 typedef struct {
+  int SEQ;
   int ACK;
   int FIN;
   int SYN;
@@ -57,6 +58,15 @@ void start();
 BUFFER server_buf;
 BUFFER client_buf;
 BUFFER ack_buf;
+
+/* SEND PACKET */
+void send_packet(char data[32]){
+  printf("SEND PACKET: placed in client buffer\n");
+  strcpy(client_buf.packet[client_buf.seq_0].data, data);
+  client_buf.packet[client_buf.seq_0].SEQ = client_buf.seq_0;
+  client_buf.seq_0 = next_seq(client_buf.seq_0);
+
+}
 
 /* WINDOW SIZE */
 int client_window(){
@@ -120,8 +130,8 @@ void OUT_send_syn(){
   printf("OUT: send syn\n");
 }
 
-void OUT_send_packet(){
-  printf("OUT: send packet\n");
+void OUT_send_packet(PACKET p){
+  printf("OUT: send packet; DATA = %s;\n", p.data);
 }
 
 void OUT_send_syn_ack(){
@@ -261,6 +271,13 @@ int main(int argc, char *argv[]){
         input = SYN_ACK;
         sleep(1);
 
+        send_packet("MSG1");
+        send_packet("MSG2");
+        send_packet("MSG3");
+        send_packet("MSG4");
+        /*sleep(5);
+
+
         input = CLOSE;
         sleep(1);
 
@@ -270,7 +287,8 @@ int main(int argc, char *argv[]){
         input = FIN;
         sleep(1);
 
-        input = EXIT;
+        input = EXIT;*/
+
         getchar();
 
     }
@@ -379,14 +397,22 @@ void STATE_MACHINE(){
                 while(i < client_buf.seq_1){
                   if(timeout(client_established[i]) == 1){
                     client_buf.seq_1 = i;
+                    int j;
+                    j = client_buf.seq_2;
+                    while(j < client_buf.seq_1){
+                      reset_timer(&client_established[j]);
+                    }
                   }
+                  i++;
                 }
-                if(client_buf.seq_0 > client_buf.seq_1 && window_size() < window){
+                if(client_buf.seq_0 > client_buf.seq_1 /*&& window_size() < window()*/){
                   OUT_send_packet(client_buf.packet[client_buf.seq_1]);
-                  client_buf.seq_1 = next_seq(client_buf.seq_1);
                   client_established[client_buf.seq_1].on = 1;
                   client_established[client_buf.seq_1].start = clock();
                   client_established[client_buf.seq_1].length = clock_time(10);
+                  client_buf.seq_1 = next_seq(client_buf.seq_1);
+
+
                 }else{
                   if(ack_buf.seq_1 > ack_buf.seq_2 || ack_buf.seq_1 < ack_buf.seq_2){
                     if(PACKET_ACK(ack_buf.seq_2) == client_buf.last_ack+1){

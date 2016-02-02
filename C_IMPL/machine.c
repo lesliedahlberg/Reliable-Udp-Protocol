@@ -21,12 +21,38 @@ typedef struct {
   PACKET packet[MODULO];
 } BUFFER;
 
+typedef struct {
+  int seq_1;
+  int seq_2;
+  PACKET packet[MODULO];
+} ACKs
+
 
 /* INIT. INCOMING BUFFER */
 BUFFER server_buf;
 server_buf.seq_0 = 0;
 server_buf.seq_1 = 0;
 server_buf.seq_2 = 0;
+
+/* INIT. OUTGOING BUFFER */
+BUFFER client_buf;
+client_buf.seq_0 = 0; //Next place to load new packet on buffer
+client_buf.seq_1 = 0; //Next packet to send
+client_buf.seq_2 = 0; //Next packet expecting ACK for
+
+/* ACK BUFFER*/
+ACKs ack_buf;
+ack_buf.seq_1 = 0;
+ack_buf.seq_2 = 0;
+
+/* WINDOW SIZE */
+int client_window(){
+  if(client_buf.seq_1 > client_buf.seq_2){
+    return client_buf.seq_1 - client_buf.seq_2;
+  }else{
+    return MODULO - (client_buf.seq_1 - client_buf.seq_2);
+  }
+}
 
 /* MODULO NEXT SEQ. IN INCOMING BUFFER */
 int next_seq(int seq){
@@ -89,6 +115,7 @@ typedef enum {
   SYN,
   ACK,
   FIN,
+  FIN_ACK,
   TIMEOUT,
   RESET,
   GOOD_PACKET,
@@ -125,6 +152,23 @@ pre_established_timer.on = -1;
 
 TIMER syn_recieved_timer;
 syn_recieved_timer.on = -1;
+
+TIMER client_established[MODULO];
+
+TIMER fin_wait_1_timer;
+fin_wait_1_timer.on = -1;
+
+TIMER time_wait_timer;
+time_wait_timer.on = -1;
+
+TIMER closing_timer;
+closing_timer.on = -1;
+
+TIMER close_wait_timer;
+close_wait_timer.on = -1;
+
+TIMER last_ack_timer;
+last_ack_timer.on = -1;
 
 void start(){
     STATE_MACHINE();
@@ -203,6 +247,34 @@ void STATE_MACHINE(){
 
             /*STATE: ESTABLISHED_CLIENT*/
             case ESTABLISHED_CLIENT:{
+              if(input == CLOSE){
+                input = NONE;
+                state = FIN_WAIT1;
+                OUT_send_fin();
+              }else{
+                int i;
+                i = client_buf.seq_2;
+                while(i < client_buf.seq_1){
+                  if(timeout(client_established[i]) == 1){
+                    client_buf.seq_1 = i;
+                  }
+                }
+                if(client_buf.seq_0 > client_buf.seq_1 && window_size() < WINDOW){
+                  OUT_send_packet(client_buf.packet[client_buf.seq_1]);
+                  client_buf.seq_1 = next_seq(client_buf.seq_1);
+                  client_established[seq_1].on = 1;
+                  client_established[seq_1].start = clock();
+                  client_established[seq_1].length = clock_time();
+                }else{
+                  if(ack_buf.seq_1 > ack_buf.seq_2 || ack_buf.seq_1 < ack_buf.seq_2){
+                    if(PACKET_ACK(ack_buf.seq_2) == client_buf.last_ack+1){
+                      client_buf.last_ack = next_ack(client_buf.last_ack);
+                      client_established[seq_2].on = -1;
+                      client_buf.seq_2 = next_seq(client_buf.seq_2);
+                    }
+                  }
+                }
+              }
 
             } break;
 
@@ -249,44 +321,144 @@ void STATE_MACHINE(){
 
             /*STATE: ESTABLISHED_SERVER*/
             case ESTABLISHED_SERVER:{
-              if(server_buf.seq_1 < server_buf.seq_2){
-                if(IS_PACKET_BAD(server_buf.packet[server_buf.seq_1]) == 1 || PACKET_ACK(server_buf.packet[server_buf.seq_1]) != next_ack(server_buf.last_ack)){
-                  OUT_send_ack(server_buf.last_ack);
-                }else{
-                  server_buf.seq_1 = next_seq(server_buf.seq_1);
-                  OUT_send_ack(next_ack(server_buf.last_ack));
-                  server_buf.last_ack++;
+              if(input == FIN){
+                input = NONE;
+                OUT_send_ack();
+                state = CLOSE_WAIT;
+              }else{
+                if(server_buf.seq_1 < server_buf.seq_2){
+                  if(IS_PACKET_BAD(server_buf.packet[server_buf.seq_1]) == 1 || PACKET_ACK(server_buf.packet[server_buf.seq_1]) != next_ack(server_buf.last_ack)){
+                    OUT_send_ack(server_buf.last_ack);
+                  }else{
+                    server_buf.seq_1 = next_seq(server_buf.seq_1);
+                    OUT_send_ack(next_ack(server_buf.last_ack));
+                    server_buf.last_ack++;
+                  }
                 }
               }
             } break;
 
             /*STATE: FIN_WAIT1 */
             case FIN_WAIT1:{
+              if(input == ACK){
+                input = NONE;
+                state = FIN_WAIT2;
+              }else if(input == FIN_ACK){
+                input = NONE;
+                OUT_send_ack();
+                state = TIME_WAIT;
+              }else if(input == FIN){
+                input == NONE;
+                OUT_send_ack();
+                state = CLOSING;
+              }else{
+                if(fin_wait_1_timer.on == -1){
+                  fin_wait_1_timer.on = 3
+                  fin_wait_1_timer.start = clock();
+                  fin_wait_1_timer.length = clock_time(10);
+                }else{
+                  if(timeout(fin_wait_1_timer) == 1){
+                    decrease_timer(&fin_wait_1_timer);
+                    OUT_send_fin();
+                  }
+                  if(fin_wait_1_timer.on == 0){
+                    state = TIME_WAIT;
+                  }
+                }
+              }
 
             } break;
 
             /* STATE: FIN_WAIT_2 */
             case FIN_WAIT2:{
-
+              if(input == FIN){
+                input = NONE;
+                OUT_send_ack();
+                state = TIME_WAIT;
+              }
             } break;
             /*STATE: TIME_WAIT*/
             case TIME_WAIT:{
-
+              if(input == FIN){
+                input = NONE;
+                OUT_send_ack();
+              }else if(input == FIN_ACK){
+                input = NONE;
+                OUT_send_ack();
+              }else{
+                if(time_wait_timer.on == -1){
+                  time_wait_timer.on = 1;
+                  time_wait_timer.start = clock();
+                  time_wait_timer.length = clock_time(10);
+                }else{
+                  if(timeout(time_wait_timer) == 1){
+                    state = CLOSED;
+                  }
+                }
+              }
             } break;
 
             /*STATE: CLOSING*/
             case CLOSING:{
-
+              if(input == ACK){
+                input = NONE;
+                state = TIME_WAIT;
+              }else{
+                if(closing_timer.on == -1){
+                  closing_timer.on = 3;
+                  closing_timer.start = clock();
+                  closing_timer.length = clock_time(10);
+                }else{
+                  if(timeout(closing_timer) == 1){
+                    decrease_timer(&closing_timer);
+                    OUT_send_ack();
+                  }
+                  if(closing_timer.on == 0){
+                    closing_timer.on = -1;
+                    state = TIME_WAIT;
+                  }
+                }
+              }
             } break;
 
             /*STATE: CLOSE_WAIT*/
             case CLOSE_WAIT:{
-
+              if(input == FIN){
+                input = NONE;
+                OUT_send_ack();
+              }else if(close_wait_timer.on == -1){
+                close_wait_timer.on = 1;
+                close_wait_timer.start = clock();
+                close_wait_timer.length = clock_time(10);
+              }else{
+                if(timeout(close_wait_timer) == 1){
+                  close_wait_timer.on = -1;
+                  state = LAST_ACK;
+                  OUT_send_fin();
+                }
+              }
             } break;
 
             /*STATE: LAST_ACK*/
             case LAST_ACK:{
-
+              if(input == ACK){
+                input = NONE;
+                state = CLOSED;
+              }else{
+                if(last_ack_timer.on == -1){
+                  last_ack_timer.on = 3;
+                  last_ack_timer.start = clock();
+                  last_ack_timer.length = clock_time(10);
+                }else{
+                  if(timeout(last_ack_timer) == 1){
+                    decrease_timer(last_ack_timer);
+                    OUT_send_fin();
+                  }
+                  if(last_ack_timer.on == 0){
+                    state = CLOSED;
+                  }
+                }
+              }
             } break;
 
         }

@@ -13,6 +13,7 @@
 #define FOREVER 1
 #define MODULO 1024
 #define WINDOW_MODULO 1024
+#define WINDOW 2
 
 /* THREADs */
 pthread_t tid;
@@ -65,6 +66,14 @@ void send_packet(char data[32]){
   strcpy(client_buf.packet[client_buf.seq_0].data, data);
   client_buf.packet[client_buf.seq_0].SEQ = client_buf.seq_0;
   client_buf.seq_0 = next_seq(client_buf.seq_0);
+
+}
+
+/* RECIEVE PACKET */
+void recieve_packet(char data[32]){
+  printf("RECIEVE PACKET: placed in server buffer\n");
+  strcpy(server_buf.packet[server_buf.seq_2].data, data);
+  server_buf.seq_2 = next_seq(server_buf.seq_2);
 
 }
 
@@ -147,7 +156,7 @@ void OUT_send_fin_ack(){
 }
 
 int PACKET_ACK(){
-  return 0;
+  return next_ack(server_buf.last_ack);
 }
 
 int IS_PACKET_BAD(){
@@ -155,7 +164,7 @@ int IS_PACKET_BAD(){
 }
 
 int window_size(){
-  return 1;
+  return client_buf.seq_1 - client_buf.seq_2;
 }
 
 /* INPUTs */
@@ -254,13 +263,20 @@ int main(int argc, char *argv[]){
         sleep(1);
         input = ACK;
         sleep(1);
-        input = FIN;
+
+        recieve_packet("MSG1");
+        recieve_packet("MSG2");
+        recieve_packet("MSG3");
+        recieve_packet("MSG4");
+
+
+        /*input = FIN;
         sleep(1);
         input = CLOSE;
         sleep(1);
         input = ACK;
         sleep(1);
-        input = EXIT;
+        input = EXIT;*/
         getchar();
 
 
@@ -409,7 +425,8 @@ void STATE_MACHINE(){
 
                   i++;
                 }
-                if(client_buf.seq_0 > client_buf.seq_1 /*&& window_size() < window()*/){
+                if(client_buf.seq_0 > client_buf.seq_1 && window_size() < WINDOW){
+                  printf("WINDOW: %d < %d\n", window_size(), WINDOW);
                   OUT_send_packet(client_buf.packet[client_buf.seq_1]);
                   if(client_established[client_buf.seq_1].on == -1){
                     client_established[client_buf.seq_1].on = 3;
@@ -498,12 +515,17 @@ void STATE_MACHINE(){
                 state = CLOSE_WAIT;
               }else{
                 if(server_buf.seq_1 < server_buf.seq_2){
-                  if(IS_PACKET_BAD(server_buf.packet[server_buf.seq_1]) == 1 || PACKET_ACK(server_buf.packet[server_buf.seq_1]) != next_ack(server_buf.last_ack)){
+                  if(/*IS_PACKET_BAD(server_buf.packet[server_buf.seq_1]) == 1 ||*/ PACKET_ACK(server_buf.packet[server_buf.seq_1]) != next_ack(server_buf.last_ack)){
+                    printf("reACK: old packet\n");
                     OUT_send_ack(server_buf.last_ack);
                   }else{
+
+                    printf("ACK: new packet\n");
+                    printf("RECV: DATA=%s;\n", server_buf.packet[server_buf.seq_1].data);
+
                     server_buf.seq_1 = next_seq(server_buf.seq_1);
                     OUT_send_ack(next_ack(server_buf.last_ack));
-                    server_buf.last_ack++;
+                    server_buf.last_ack = next_ack(server_buf.last_ack);
                   }
                 }
               }

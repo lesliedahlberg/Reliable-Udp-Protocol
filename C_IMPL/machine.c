@@ -3,6 +3,29 @@
 #DEFINE WINDOW 512;
 #DEFINE WINDOW_MODULO 1024;
 
+pthread_t tid;
+
+void OUT_send_ack(){
+
+}
+
+void OUT_send_syn(){
+
+}
+
+void OUT_send_syn_ack(){
+
+}
+
+
+void OUT_send_fin(){
+
+}
+
+void OUT_send_fin_ack(){
+
+}
+
 /* PACKET */
 typedef struct {
   int ACK;
@@ -30,9 +53,7 @@ typedef struct {
 
 /* INIT. INCOMING BUFFER */
 BUFFER server_buf;
-server_buf.seq_0 = 0;
-server_buf.seq_1 = 0;
-server_buf.seq_2 = 0;
+
 
 /* INIT. OUTGOING BUFFER */
 BUFFER client_buf;
@@ -108,28 +129,12 @@ clock_t clock_time(int milli_seconds){
 
 /* INPUTs */
 typedef enum {
-  NONE,
-  CONNECT,
-  CLOSE,
-  SYN_ACK,
-  SYN,
-  ACK,
-  FIN,
-  FIN_ACK,
-  TIMEOUT,
-  RESET,
-  GOOD_PACKET,
-  BAD_PACKET,
+  NONE,CONNECT,CLOSE,SYN_ACK,SYN,ACK,FIN,FIN_ACK,TIMEOUT,RESET,GOOD_PACKET,BAD_PACKET
 } INPUT;
 
 /* STATES */
 typedef enum {
-  CLOSED,
-  SYN_SENT,
-  PRE_ESTABLISHED,
-  ESTABLISHED_CLIENT,
-  LISTEN,
-  SYN_RECIEVED,
+  CLOSED,SYN_SENT,PRE_ESTABLISHED,ESTABLISHED_CLIENT,LISTEN,SYN_RECIEVED,
   ESTABLISHED_SERVER,
   FIN_WAIT_1,
   FIN_WAIT_2,
@@ -139,44 +144,100 @@ typedef enum {
   LAST_ACK
 } STATE;
 
-/* INIT STATE MACHINE VARIABLES */
-STATE state = CLOSED;
-INPUT input = NONE;
 
-/* SET TIMERS */
+/* STATE MACHINE */
+STATE state;
+INPUT input;
+
+/* TIMERS */
 TIMER syn_sent_timer;
-syn_sent_timer.on = -1;
-
 TIMER pre_established_timer;
-pre_established_timer.on = -1;
-
 TIMER syn_recieved_timer;
-syn_recieved_timer.on = -1;
-
 TIMER client_established[MODULO];
-
 TIMER fin_wait_1_timer;
-fin_wait_1_timer.on = -1;
-
 TIMER time_wait_timer;
-time_wait_timer.on = -1;
-
 TIMER closing_timer;
-closing_timer.on = -1;
-
 TIMER close_wait_timer;
-close_wait_timer.on = -1;
-
 TIMER last_ack_timer;
-last_ack_timer.on = -1;
 
 void start(){
-    STATE_MACHINE();
+    server_buf.seq_0 = 0;
+    server_buf.seq_1 = 0;
+    server_buf.seq_2 = 0;
+
+    /* INIT STATE MACHINE VARIABLES */
+    state = CLOSED;
+    input = NONE;
+
+    syn_sent_timer.on = -1;
+    pre_established_timer.on = -1;
+    syn_recieved_timer.on = -1;
+    fin_wait_1_timer.on = -1;
+    time_wait_timer.on = -1;
+    closing_timer.on = -1;
+    close_wait_timer.on = -1;
+    last_ack_timer.on = -1;
+
+
+
+
+    /* Start thread recieving replies from server */
+  if(pthread_create(&tid, NULL, &STATE_MACHINE, NULL) != 0){
+    perror("Could not start thread.\n");
+    exit(EXIT_FAILURE);
+  }
 }
 
 void connect(){
     input = CONNECT
 
+}
+
+void listen(){
+    input = LISTEN;
+
+}
+
+int main(int argc, char *argv[]){
+    if(strcmp(argv[1], "server")){
+        printf("<<<<<<SERVER>>>>>>:\n");
+        start();
+        sleep(1);
+        input = LISTEN;
+        sleep(1);
+        input = SYN;
+        sleep(1);
+        input = ACK;
+        sleep(1);
+        input = FIN;
+        sleep(1);
+        input = CLOSE;
+        sleep(1);
+        input = ACK;
+        sleep(1);
+
+
+    }else if(strcmp(argv[1], "client")){
+        printf("<<<<<<CLIENT>>>>>>:\n");
+        start();
+        sleep(1);
+
+        input = CONNECT;
+        sleep(1);
+
+        input = CLOSE;
+        sleep(1);
+
+        input = ACK;
+        sleep(1);
+
+        input = FIN;
+        sleep(1);
+
+    }else{
+        printf("INVALID\n");
+        return 0;
+    }
 }
 
 void STATE_MACHINE(){
@@ -185,6 +246,7 @@ void STATE_MACHINE(){
 
             /*STATE: CLOSED*/
             case CLOSED:{
+                printf("STATE = CLOSED\n");
                 /*INPUT: CONNECT*/
                 if(input == CONNECT){
                     input = NONE;
@@ -200,6 +262,7 @@ void STATE_MACHINE(){
 
             /*STATE: SYN_SENT*/
             case SYN_SENT:{
+                printf("STATE = SYN_SENT\n");
                 if(input == SYN_ACK){
                     input = NONE;
                     //Send ACK
@@ -227,6 +290,7 @@ void STATE_MACHINE(){
 
             /*STATE: PRE_ESTABLISHED*/
             case PRE_ESTABLISHED:{
+                printf("STATE = PRE_ESTABLISHED\n");
                 if(input == SYN_ACK){
                     input = NONE;
                     OUT_send_ack();
@@ -246,6 +310,7 @@ void STATE_MACHINE(){
 
             /*STATE: ESTABLISHED_CLIENT*/
             case ESTABLISHED_CLIENT:{
+              printf("STATE = ESTABLISHED_CLIENT\n");
               if(input == CLOSE){
                 input = NONE;
                 state = FIN_WAIT1;
@@ -279,6 +344,7 @@ void STATE_MACHINE(){
 
             /*STATE: LISTEN*/
             case LISTEN:{
+                printf("STATE = LISTEN\n");
                 if(input == SYN){
                     input = NONE;
                     OUT_send_syn_ack();
@@ -291,6 +357,7 @@ void STATE_MACHINE(){
 
             /*STATE: SYN_RECIEVED*/
             case SYN_RECIEVED:{
+                printf("STATE = SYN_RECIEVED\n");
                 if(input == ACK){
                   input = NONE;
                   state = ESTABLISHED_SERVER;
@@ -319,6 +386,7 @@ void STATE_MACHINE(){
 
             /*STATE: ESTABLISHED_SERVER*/
             case ESTABLISHED_SERVER:{
+                printf("State = ESTABLISHED_SERVER");
               if(input == FIN){
                 input = NONE;
                 OUT_send_ack();
@@ -338,6 +406,7 @@ void STATE_MACHINE(){
 
             /*STATE: FIN_WAIT1 */
             case FIN_WAIT1:{
+                printf("State = FIN_WAIT1");
               if(input == ACK){
                 input = NONE;
                 state = FIN_WAIT2;
@@ -369,6 +438,7 @@ void STATE_MACHINE(){
 
             /* STATE: FIN_WAIT_2 */
             case FIN_WAIT2:{
+                printf("State = FIN_WAIT2");
               if(input == FIN){
                 input = NONE;
                 OUT_send_ack();
@@ -377,6 +447,7 @@ void STATE_MACHINE(){
             } break;
             /*STATE: TIME_WAIT*/
             case TIME_WAIT:{
+                printf("State = TIME_WAIT");
               if(input == FIN){
                 input = NONE;
                 OUT_send_ack();
@@ -398,6 +469,7 @@ void STATE_MACHINE(){
 
             /*STATE: CLOSING*/
             case CLOSING:{
+                printf("State = CLOSING");
               if(input == ACK){
                 input = NONE;
                 state = TIME_WAIT;
@@ -421,6 +493,7 @@ void STATE_MACHINE(){
 
             /*STATE: CLOSE_WAIT*/
             case CLOSE_WAIT:{
+                printf("State = CLOSE_WAIT");
               if(input == FIN){
                 input = NONE;
                 OUT_send_ack();
@@ -439,6 +512,7 @@ void STATE_MACHINE(){
 
             /*STATE: LAST_ACK*/
             case LAST_ACK:{
+              printf("State = LAST_ACK");
               if(input == ACK){
                 input = NONE;
                 state = CLOSED;

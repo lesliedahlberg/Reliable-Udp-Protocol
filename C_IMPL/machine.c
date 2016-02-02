@@ -5,27 +5,6 @@
 
 pthread_t tid;
 
-void OUT_send_ack(){
-
-}
-
-void OUT_send_syn(){
-
-}
-
-void OUT_send_syn_ack(){
-
-}
-
-
-void OUT_send_fin(){
-
-}
-
-void OUT_send_fin_ack(){
-
-}
-
 /* PACKET */
 typedef struct {
   int ACK;
@@ -44,27 +23,25 @@ typedef struct {
   PACKET packet[MODULO];
 } BUFFER;
 
+/* ACK BUFFER */
 typedef struct {
   int seq_1;
   int seq_2;
   PACKET packet[MODULO];
 } ACKs
 
+/* TIMER */
+typedef struct {
+    int on;
+    clock_t start;
+    clock_t length;
+} TIMER;
 
-/* INIT. INCOMING BUFFER */
+/* BUFFERS */
 BUFFER server_buf;
-
-
-/* INIT. OUTGOING BUFFER */
 BUFFER client_buf;
-client_buf.seq_0 = 0; //Next place to load new packet on buffer
-client_buf.seq_1 = 0; //Next packet to send
-client_buf.seq_2 = 0; //Next packet expecting ACK for
-
-/* ACK BUFFER*/
 ACKs ack_buf;
-ack_buf.seq_1 = 0;
-ack_buf.seq_2 = 0;
+
 
 /* WINDOW SIZE */
 int client_window(){
@@ -93,14 +70,9 @@ int next_ack(int ack){
   }
 }
 
-/* TIMER */
-typedef struct {
-    int on;
-    clock_t start;
-    clock_t length;
-} TIMER;
 
-/* CHECK TIMER */
+
+/* TIMER FUNCTIONS */
 int timeout(TIMER t){
     if(t.start-clock() >= t.length){
         return 1;
@@ -119,12 +91,33 @@ void decrease_timer(TIMER *t){
   }else{
     t->on = 0;
   }
-
 }
 
 /* MILLISECONDS TO CLOCK TIME */
 clock_t clock_time(int milli_seconds){
     return ((float) milli_seconds)/1000f*CLOCKS_PER_SEC;
+}
+
+/* OUT FUNCTIONS */
+
+void OUT_send_ack(){
+
+}
+
+void OUT_send_syn(){
+
+}
+
+void OUT_send_syn_ack(){
+
+}
+
+void OUT_send_fin(){
+
+}
+
+void OUT_send_fin_ack(){
+
 }
 
 /* INPUTs */
@@ -134,14 +127,7 @@ typedef enum {
 
 /* STATES */
 typedef enum {
-  CLOSED,SYN_SENT,PRE_ESTABLISHED,ESTABLISHED_CLIENT,LISTEN,SYN_RECIEVED,
-  ESTABLISHED_SERVER,
-  FIN_WAIT_1,
-  FIN_WAIT_2,
-  TIME_WAIT,
-  CLOSING,
-  CLOSE_WAIT,
-  LAST_ACK
+  CLOSED,SYN_SENT,PRE_ESTABLISHED,ESTABLISHED_CLIENT,LISTEN,SYN_RECIEVED,ESTABLISHED_SERVER,FIN_WAIT_1,FIN_WAIT_2,TIME_WAIT,CLOSING,CLOSE_WAIT,LAST_ACK
 } STATE;
 
 
@@ -161,14 +147,23 @@ TIMER close_wait_timer;
 TIMER last_ack_timer;
 
 void start(){
+    /* BUFFERS */
     server_buf.seq_0 = 0;
     server_buf.seq_1 = 0;
     server_buf.seq_2 = 0;
+
+    client_buf.seq_0 = 0; //Next place to load new packet on buffer
+    client_buf.seq_1 = 0; //Next packet to send
+    client_buf.seq_2 = 0; //Next packet expecting ACK for
+
+    ack_buf.seq_1 = 0;
+    ack_buf.seq_2 = 0;
 
     /* INIT STATE MACHINE VARIABLES */
     state = CLOSED;
     input = NONE;
 
+    /* TIMERS */
     syn_sent_timer.on = -1;
     pre_established_timer.on = -1;
     syn_recieved_timer.on = -1;
@@ -178,14 +173,11 @@ void start(){
     close_wait_timer.on = -1;
     last_ack_timer.on = -1;
 
-
-
-
     /* Start thread recieving replies from server */
-  if(pthread_create(&tid, NULL, &STATE_MACHINE, NULL) != 0){
-    perror("Could not start thread.\n");
-    exit(EXIT_FAILURE);
-  }
+    if(pthread_create(&tid, NULL, &STATE_MACHINE, NULL) != 0){
+      perror("Could not start thread.\n");
+      exit(EXIT_FAILURE);
+    }
 }
 
 void connect(){

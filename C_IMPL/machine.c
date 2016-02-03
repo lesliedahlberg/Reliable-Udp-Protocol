@@ -20,11 +20,11 @@ pthread_t tid;
 
 /* PACKET */
 typedef struct {
-  int SEQ;
-  int ACK;
-  int FIN;
-  int SYN;
-  int SUM;
+  int seq;
+  int ack;
+  int fin;
+  int syn;
+  int sum;
   char data[32];
 } PACKET;
 
@@ -60,22 +60,7 @@ BUFFER server_buf;
 BUFFER client_buf;
 BUFFER ack_buf;
 
-/* SEND PACKET */
-void send_packet(char data[32]){
-  printf("SEND PACKET: placed in client buffer\n");
-  strcpy(client_buf.packet[client_buf.seq_0].data, data);
-  client_buf.packet[client_buf.seq_0].SEQ = client_buf.seq_0;
-  client_buf.seq_0 = next_seq(client_buf.seq_0);
 
-}
-
-/* RECIEVE PACKET */
-void recieve_packet(char data[32]){
-  printf("RECIEVE PACKET: placed in server buffer\n");
-  strcpy(server_buf.packet[server_buf.seq_2].data, data);
-  server_buf.seq_2 = next_seq(server_buf.seq_2);
-
-}
 
 /* WINDOW SIZE */
 int client_window(){
@@ -97,6 +82,9 @@ int next_seq(int seq){
 
 /* MODULO NEXT ACK. IN INCOMING SLIDING WINDOW */
 int next_ack(int ack){
+  if(ack == -1){
+    return 0;
+  }
   if(ack+1 > WINDOW_MODULO - 1){
     return 0;
   }else{
@@ -130,9 +118,37 @@ clock_t clock_time(int milli_seconds){
     return 1000;
 }
 
+/* SEND PACKET */
+void send_packet(char data[32]){
+  printf("SEND PACKET: placed in client buffer\n");
+  strcpy(client_buf.packet[client_buf.seq_0].data, data);
+  client_buf.packet[client_buf.seq_0].seq = client_buf.seq_0;
+  client_buf.seq_0 = next_seq(client_buf.seq_0);
+
+}
+
+/* SEND PACKET */
+void send_ack(int seq){
+  PACKET ack_packet;
+  ack_packet.ack = 1;
+  ack_packet.seq = seq;
+  //SEND over network
+  printf("SEND ACK: seq: %d;\n", ack_packet.seq);
+}
+
+/* RECIEVE PACKET */
+void recieve_packet(char data[32]){
+  static int i = 0;
+  printf("RECIEVE PACKET: placed in server buffer\n");
+  strcpy(server_buf.packet[server_buf.seq_2].data, data);
+  server_buf.packet[server_buf.seq_2].seq = i++;
+  server_buf.seq_2 = next_seq(server_buf.seq_2);
+}
+
 /* OUT FUNCTIONS */
-void OUT_send_ack(){
+void OUT_send_ack(int seq){
   printf("OUT: send ack\n");
+  send_ack(seq);
 }
 
 void OUT_send_syn(){
@@ -155,8 +171,9 @@ void OUT_send_fin_ack(){
   printf("OUT: send fin ack\n");
 }
 
-int PACKET_ACK(){
-  return next_ack(server_buf.last_ack);
+int PACKET_ACK(PACKET t){
+  return t.seq;
+  //return next_ack(server_buf.last_ack);
 }
 
 int IS_PACKET_BAD(){
@@ -197,9 +214,10 @@ int window = 512;
 
 void start(){
     /* BUFFERS */
-    server_buf.seq_0 = 0;
-    server_buf.seq_1 = 0;
-    server_buf.seq_2 = 0;
+    server_buf.seq_0 = 0; //Not used
+    server_buf.seq_1 = 0; //Next packet to ack
+    server_buf.seq_2 = 0; //Next packet to place on buffer
+
 
     client_buf.seq_0 = 0; //Next place to load new packet on buffer
     client_buf.seq_1 = 0; //Next packet to send
@@ -360,7 +378,7 @@ void STATE_MACHINE(){
                   printf("IN: SYN_ACK\n");
                     input = NONE;
                     //Send ACK
-                    OUT_send_ack();
+                    OUT_send_ack(-1);
                     //GO TO: PRE_ESTABLISHED
                     state = PRE_ESTABLISHED;
                     reset_timer(&syn_sent_timer);
@@ -389,7 +407,7 @@ void STATE_MACHINE(){
                 if(input == SYN_ACK){
                   printf("IN: SYN_ACK\n");
                     input = NONE;
-                    OUT_send_ack();
+                    OUT_send_ack(-1);
                 }else{
                     if(pre_established_timer.on == -1){
                         pre_established_timer.on = 1;
@@ -419,10 +437,8 @@ void STATE_MACHINE(){
                 while(i < client_buf.seq_1){
                   if(timeout(client_established[i]) == 1){
                     printf("PACK_TIMEOUT: %d; ON=%d;\n", i, client_established[i].on);
-
                     client_buf.seq_1 = i;
                   }
-
                   i++;
                 }
                 if(client_buf.seq_0 > client_buf.seq_1 && window_size() < WINDOW){
@@ -441,11 +457,9 @@ void STATE_MACHINE(){
                   client_established[client_buf.seq_1].length = clock_time(10);
                   printf("SET TIMER: %d; ON=%d;\n", client_buf.seq_1, client_established[client_buf.seq_1].on);
                   client_buf.seq_1 = next_seq(client_buf.seq_1);
-
-
                 }else{
                   if(ack_buf.seq_1 > ack_buf.seq_2 || ack_buf.seq_1 < ack_buf.seq_2){
-                    if(PACKET_ACK(ack_buf.seq_2) == client_buf.last_ack+1){
+                    if(PACKET_ACK(ack_buf.packet[ack_buf.seq_2]) == next_ack(client_buf.last_ack)){
                       client_buf.last_ack = next_ack(client_buf.last_ack);
                       reset_timer(&client_established[client_buf.seq_2]);
                       client_buf.seq_2 = next_seq(client_buf.seq_2);
@@ -453,7 +467,6 @@ void STATE_MACHINE(){
                   }
                 }
               }
-
             } break;
 
             /*=============*/
@@ -511,21 +524,18 @@ void STATE_MACHINE(){
               if(input == FIN){
                 printf("IN: FIN\n");
                 input = NONE;
-                OUT_send_ack();
+                OUT_send_ack(-1);
                 state = CLOSE_WAIT;
               }else{
                 if(server_buf.seq_1 < server_buf.seq_2){
-                  if(/*IS_PACKET_BAD(server_buf.packet[server_buf.seq_1]) == 1 ||*/ PACKET_ACK(server_buf.packet[server_buf.seq_1]) != next_ack(server_buf.last_ack)){
+                  if(/*IS_PACKET_BAD(server_buf.packet[server_buf.seq_1]) == 1 ||*/ PACKET_ACK(server_buf.packet[server_buf.seq_1]) != server_buf.seq_1){
                     printf("reACK: old packet\n");
-                    OUT_send_ack(server_buf.last_ack);
+                    OUT_send_ack(server_buf.seq_1);
                   }else{
-
                     printf("ACK: new packet\n");
                     printf("RECV: DATA=%s;\n", server_buf.packet[server_buf.seq_1].data);
-
+                    OUT_send_ack(PACKET_ACK(server_buf.packet[server_buf.seq_1]));
                     server_buf.seq_1 = next_seq(server_buf.seq_1);
-                    OUT_send_ack(next_ack(server_buf.last_ack));
-                    server_buf.last_ack = next_ack(server_buf.last_ack);
                   }
                 }
               }
@@ -542,12 +552,12 @@ void STATE_MACHINE(){
               }else if(input == FIN_ACK){
                 printf("IN: FIN_ACK\n");
                 input = NONE;
-                OUT_send_ack();
+                OUT_send_ack(-1);
                 state = TIME_WAIT;
               }else if(input == FIN){
                 printf("IN: FIN\n");
                 input == NONE;
-                OUT_send_ack();
+                OUT_send_ack(-1);
                 state = CLOSING;
               }else{
                 if(fin_wait_1_timer.on == -1){
@@ -574,7 +584,7 @@ void STATE_MACHINE(){
               if(input == FIN){
                 printf("IN: FIN\n");
                 input = NONE;
-                OUT_send_ack();
+                OUT_send_ack(-1);
                 state = TIME_WAIT;
               }
             } break;
@@ -586,11 +596,11 @@ void STATE_MACHINE(){
               if(input == FIN){
                 printf("IN: FIN\n");
                 input = NONE;
-                OUT_send_ack();
+                OUT_send_ack(-1);
               }else if(input == FIN_ACK){
                 printf("IN: FIN_ACK\n");
                 input = NONE;
-                OUT_send_ack();
+                OUT_send_ack(-1);
               }else{
                 if(time_wait_timer.on == -1){
                   time_wait_timer.on = 1;
@@ -620,7 +630,7 @@ void STATE_MACHINE(){
                 }else{
                   if(timeout(closing_timer) == 1){
                     decrease_timer(&closing_timer);
-                    OUT_send_ack();
+                    OUT_send_ack(-1);
                   }
                   if(closing_timer.on == 0){
                     closing_timer.on = -1;
@@ -637,7 +647,7 @@ void STATE_MACHINE(){
               if(input == FIN){
                 printf("IN: FIN\n");
                 input = NONE;
-                OUT_send_ack();
+                OUT_send_ack(-1);
               }else if(close_wait_timer.on == -1){
                 close_wait_timer.on = 1;
                 close_wait_timer.start = clock();

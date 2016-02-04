@@ -111,18 +111,22 @@
     ================= */
 
     /* USER CONTROL */
-    void start();
-    void u_connect();
-    void u_listen();
-    void u_close();
-    void send_string(char* data, int length);
 
+    void u_start();
+    void u_close();
+    /* Server */
+    void u_listen();
+    void u_start_recieving();
+    /* Client */
+    void u_connect();
+    void u_prep_sending();
+    void u_send(char* data, int length);
 
     /* INTERNAL */
     void* STATE_MACHINE(void* arg);
     void send_packet(char data[32]);
     void send_ack(int seq, int ack, int syn, int fin);
-    void recieve_packet();
+
     void recieve_ack();
     int client_window();
     int next_seq(int seq);
@@ -143,6 +147,171 @@
     void OUT_send_fin_ack();
     int PACKET_ACK(PACKET t);
     int IS_PACKET_BAD(PACKET t);
+
+
+  /* =================
+     USER CONTROLS
+     ================= */
+
+     /* Server & Client */
+
+     /* Start Protocol */
+     void u_start(){
+
+         /* Intializes random number generator */
+         time_t t;
+         srand((unsigned) time(&t));
+
+         /* No acks sent yet */
+         first_ack = 1;
+
+         /* Buffer setup*/
+         server_buf.seq_0 = 0; //Not used
+         server_buf.seq_1 = 0; //Next packet to ack
+         server_buf.seq_2 = 0; //Next packet to place on buffer
+
+
+         client_buf.seq_0 = 0; //Next place to load new packet on buffer
+         client_buf.seq_1 = 0; //Next packet to send
+         client_buf.seq_2 = 0; //Next packet expecting ACK for
+
+         ack_buf.seq_0 = 0; //Not used
+         ack_buf.seq_1 = 0; //Next ack to process
+         ack_buf.seq_2 = 0; //Next ack to place on buffer
+
+         /* Reset timers for packages */
+         int i = 0;
+         while (i < MODULO) {
+           reset_timer(&client_established[i]);
+           i++;
+         }
+
+         /* Init state machine */
+         state = CLOSED;
+         input = NONE;
+
+         /* Timers */
+         reset_timer(&syn_sent_timer);
+         reset_timer(&pre_established_timer);
+         reset_timer(&syn_recieved_timer);
+         reset_timer(&fin_wait_1_timer);
+         reset_timer(&time_wait_timer);
+         reset_timer(&closing_timer);
+         reset_timer(&close_wait_timer);
+         reset_timer(&last_ack_timer);
+
+         /* Start state machine */
+         if(pthread_create(&tid, NULL, STATE_MACHINE, 0) != 0){
+           perror("Could not start thread.\n");
+           exit(EXIT_FAILURE);
+         }
+     }
+
+     /* Close protocol */
+     void u_close(){
+       input = CLOSE;
+     }
+
+     /* Server */
+
+     /* Listen to connections */
+     void u_listen(){
+         input = LISTEN;
+     }
+
+     /* Start recieving packages from network onto buffer */
+     void u_start_recieving()
+     {
+         PACKET pack;
+         while(FOREVER)
+         {
+             /* Kill thread if machine stops */
+             if(state == TIME_WAIT){
+               return;
+             }
+
+             fflush(stdout);
+             unsigned int slen = sizeof(server_socket_client_address);
+
+             //try to receive some data, this is a blocking call
+             if ((recv_len = recvfrom(server_socket, &pack, sizeof(PACKET), 0, (struct sockaddr *) &server_socket_client_address, &slen)) == -1)
+             {
+                 perror("Recvfrom.\n");
+                 exit(EXIT_FAILURE);
+             }
+
+             /* Check if packages is special flag */
+             if(pack.syn == 1 && pack.ack == 1){
+               input = SYN_ACK;
+             }else if(pack.fin == 1 && pack.ack == 1){
+               input = FIN_ACK;
+             }else if(pack.fin == 1){
+               input = FIN;
+             }else if(pack.ack == 1){
+               input = ACK;
+             }else if(pack.syn == 1){
+               input = SYN;
+             }else{
+               /* Process standard package */
+               if(ip_checksum(&pack, sizeof(PACKET)) == 0){
+                 if(pack.seq == server_buf.seq_1){
+                   printf("RECIEVE PACKET: placed in server buffer\n");
+                   printf("Data: %s\n" , pack.data);
+                   strcpy(server_buf.packet[server_buf.seq_2].data, pack.data);
+                   server_buf.packet[server_buf.seq_2].ack = pack.ack;
+                   server_buf.packet[server_buf.seq_2].fin = pack.fin;
+                   server_buf.packet[server_buf.seq_2].syn = pack.syn;
+                   server_buf.packet[server_buf.seq_2].sum = pack.sum;
+                   server_buf.packet[server_buf.seq_2].seq = pack.seq;
+                   server_buf.seq_2 = next_seq(server_buf.seq_2);
+                 }
+               }else{
+                 printf("BAD PACKET\n");
+               }
+             }
+         }
+     }
+
+     /* Client */
+
+     /* Connect to server */
+     void u_connect(){
+         input = CONNECT;
+     }
+
+     /* Make client recieve responses from server */
+     void u_prep_sending(){
+       /* Start thread recieving replies from server */
+       if(pthread_create(&tid2, NULL, recieve_ack, NULL) != 0){
+         perror("Could not start thread.\n");
+         exit(EXIT_FAILURE);
+       }
+     }
+
+     /* Send stream of data to server */
+     void u_send(char* data, int length){
+       float p = (float) length / PACKET_DATA_SIZE;
+       int packets = (int) ceil(p);
+       int i = 0;
+       char p_data[PACKET_DATA_SIZE];
+
+       /* Divide data into packages and send */
+       while(i < packets){
+         memset(&p_data, 0, sizeof(PACKET_DATA_SIZE));
+         if(i == packets-1){
+           memcpy(&p_data, data+(i*PACKET_DATA_SIZE), length-(PACKET_DATA_SIZE*(packets-1)));
+         }else{
+           memcpy(&p_data, data+(i*PACKET_DATA_SIZE), PACKET_DATA_SIZE);
+         }
+         send_packet(p_data);
+         i++;
+       }
+     }
+
+
+
+
+
 
 
 
@@ -179,6 +348,7 @@ uint16_t ip_checksum(void* vdata,size_t length) {
     // Return the checksum in network byte order.
     return htons(~acc);
 }
+
 
 
 
@@ -268,23 +438,7 @@ clock_t clock_time(int milli_seconds){
     return 1000;
 }
 
-void send_string(char* data, int length){
-  //int packets = (int) ceil(((double) length) / ((double) PACKET_DATA_SIZE)) ;
-  float p = (float) length / PACKET_DATA_SIZE;
-  int packets = (int) ceil(p);
-  int i = 0;
-  char p_data[PACKET_DATA_SIZE];
-  while(i < packets){
-    memset(&p_data, 0, sizeof(PACKET_DATA_SIZE));
-    if(i == packets-1){
-      memcpy(&p_data, data+(i*PACKET_DATA_SIZE), length-(PACKET_DATA_SIZE*(packets-1)));
-    }else{
-      memcpy(&p_data, data+(i*PACKET_DATA_SIZE), PACKET_DATA_SIZE);
-    }
-    send_packet(p_data);
-    i++;
-  }
-}
+
 
 /* SEND PACKET */
 void send_packet(char data[32]){
@@ -332,72 +486,7 @@ void send_ack(int seq, int ack, int syn, int fin){
     //printf("SEND ACK: seq: %d; ack: %d; syn:%d; fin:%d;\n", ack_packet.seq, ack_packet.ack, ack_packet.syn, ack_packet.fin);
 }
 
-/* RECIEVE PACKET */
-void recieve_packet()
-{
-    PACKET pack;
-    int i = 4;
-    while(1)
-    {
 
-        //printf("Waiting for data...");
-        fflush(stdout);
-
-        unsigned int slen = sizeof(server_socket_client_address);
-        //try to receive some data, this is a blocking call
-        if ((recv_len = recvfrom(server_socket, &pack, sizeof(PACKET), 0, (struct sockaddr *) &server_socket_client_address, &slen)) == -1)
-        {
-            //die("recvfrom()");
-            perror("Recvfrom.\n");
-            exit(EXIT_FAILURE);
-        }
-
-        if(pack.syn == 1 && pack.ack == 1){
-          input = SYN_ACK;
-        }else if(pack.fin == 1 && pack.ack == 1){
-          input = FIN_ACK;
-        }else if(pack.fin == 1){
-          input = FIN;
-        }else if(pack.ack == 1){
-          input = ACK;
-        }else if(pack.syn == 1){
-          input = SYN;
-        }else{
-
-
-
-
-          if(ip_checksum(&pack, sizeof(PACKET)) == 0){
-            if(pack.seq == server_buf.seq_1){
-
-
-              i--;
-              printf("RECIEVE PACKET: placed in server buffer\n");
-              //printf("Received packet from %s:%d\n", inet_ntoa(server_socket_client_address.sin_addr), ntohs(server_socket_client_address.sin_port));
-              printf("Data: %s\n" , pack.data);
-              strcpy(server_buf.packet[server_buf.seq_2].data, pack.data);
-              server_buf.packet[server_buf.seq_2].ack = pack.ack;
-              server_buf.packet[server_buf.seq_2].fin = pack.fin;
-              server_buf.packet[server_buf.seq_2].syn = pack.syn;
-              server_buf.packet[server_buf.seq_2].sum = pack.sum;
-              server_buf.packet[server_buf.seq_2].seq = pack.seq;
-              server_buf.seq_2 = next_seq(server_buf.seq_2);
-            }
-          }else{
-            printf("BAD PACKET\n");
-
-
-          }
-
-        }
-
-
-        //print details of the client/peer and the data received
-
-    }
-
-
-}
 
 /* RECIEVE ACK */
 void recieve_ack()
@@ -529,67 +618,7 @@ int window_size(){
 
 
 
-void start(){
 
-    /* Intializes random number generator */
-    time_t t;
-    srand((unsigned) time(&t));
-
-    first_ack = 1;
-
-    /* BUFFERS */
-    server_buf.seq_0 = 0; //Not used
-    server_buf.seq_1 = 0; //Next packet to ack
-    server_buf.seq_2 = 0; //Next packet to place on buffer
-
-
-    client_buf.seq_0 = 0; //Next place to load new packet on buffer
-    client_buf.seq_1 = 0; //Next packet to send
-    client_buf.seq_2 = 0; //Next packet expecting ACK for
-
-    ack_buf.seq_0 = 0; //Not used
-    ack_buf.seq_1 = 0;
-    ack_buf.seq_2 = 0;
-
-    int i = 0;
-    while (i < MODULO) {
-      client_established[i].on = -1;
-      i++;
-    }
-
-    /* INIT STATE MACHINE VARIABLES */
-    state = CLOSED;
-    input = NONE;
-
-    /* TIMERS */
-    reset_timer(&syn_sent_timer);
-    reset_timer(&pre_established_timer);
-    reset_timer(&syn_recieved_timer);
-    reset_timer(&fin_wait_1_timer);
-    reset_timer(&time_wait_timer);
-    reset_timer(&closing_timer);
-    reset_timer(&close_wait_timer);
-    reset_timer(&last_ack_timer);
-
-    /* Start thread recieving replies from server */
-    if(pthread_create(&tid, NULL, STATE_MACHINE, 0) != 0){
-      perror("Could not start thread.\n");
-      exit(EXIT_FAILURE);
-    }
-}
-
-/* USER FUNCTIONS */
-void u_connect(){
-    input = CONNECT;
-}
-
-void u_listen(){
-    input = LISTEN;
-}
-
-void u_close(){
-  input = CLOSE;
-}
 
 /* MAIN */
 int main(int argc, char *argv[]){
@@ -621,10 +650,10 @@ int main(int argc, char *argv[]){
         }
 
 
-        start();
+        u_start();
         sleep(1);
-        input = LISTEN;
-        recieve_packet();
+        u_listen();
+        u_start_recieving();
         //sleep(1);
         //input = SYN;
         //sleep(1);
@@ -678,11 +707,11 @@ int main(int argc, char *argv[]){
                 exit(1);
             }
         //Run machine
-        start();
+        u_start();
         sleep(1);
 
-
-        input = CONNECT;
+        u_connect();
+        //input = CONNECT;
         sleep(1);
 
         //input = SYN_ACK;
@@ -692,20 +721,16 @@ int main(int argc, char *argv[]){
         //send_packet("MSG2");
         //send_packet("MSG3");
         //send_packet("MSG4");
-        send_string("Archives (static libraries) are acted upon differently than are shared objects (dynamic libraries). With dynamic libraries, all the library symbols go into the virtual address space of the output file, and all the symbols are available to all the other files in the link. In contrast, static linking only looks through the archive for the undefined symbols presently known to the loader at the time the archive is processed.", sizeof("Archives (static libraries) are acted upon differently than are shared objects (dynamic libraries). With dynamic libraries, all the library symbols go into the virtual address space of the output file, and all the symbols are available to all the other files in the link. In contrast, static linking only looks through the archive for the undefined symbols presently known to the loader at the time the archive is processed."));
+        u_send("Archives (static libraries) are acted upon differently than are shared objects (dynamic libraries). With dynamic libraries, all the library symbols go into the virtual address space of the output file, and all the symbols are available to all the other files in the link. In contrast, static linking only looks through the archive for the undefined symbols presently known to the loader at the time the archive is processed.", sizeof("Archives (static libraries) are acted upon differently than are shared objects (dynamic libraries). With dynamic libraries, all the library symbols go into the virtual address space of the output file, and all the symbols are available to all the other files in the link. In contrast, static linking only looks through the archive for the undefined symbols presently known to the loader at the time the archive is processed."));
 
+        u_prep_sending();
 
-        /* Start thread recieving replies from server */
-        if(pthread_create(&tid2, NULL, recieve_ack, NULL) != 0){
-          perror("Could not start thread.\n");
-          exit(EXIT_FAILURE);
-        }
 
 
         sleep(10);
 
-
-        input = CLOSE;
+        u_close();
+        //input = CLOSE;
         /*sleep(1);
 
         input = ACK;

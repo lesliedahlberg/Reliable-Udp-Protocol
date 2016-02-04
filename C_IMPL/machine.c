@@ -99,7 +99,7 @@
    int server_socket_length = sizeof(server_socket_address);
 
    /* THREADs */
-   pthread_t tid
+   pthread_t tid;
    pthread_t tid2;
 
    /* ADDITIONAL VARIABLES */
@@ -125,14 +125,14 @@
     /* INTERNAL */
     void send_packet(char data[32]);
     void send_message(int seq, int ack, int syn, int fin);
-    void recieve_packets();
-    void recieve_acks();
+    void* recieve_packets(void *arg);
+    void* recieve_acks(void *arg);
 
     /* TOOLS */
     int client_window();
     int next_seq(int seq);
     int next_ack(int ack);
-    int prev_ack(int ack)
+    int prev_ack(int ack);
     int timeout(TIMER t);
     void reset_timer(TIMER *t);
     void decrease_timer(TIMER *t);
@@ -250,7 +250,7 @@
      void u_start_recieving()
      {
        /* Start thread recieving replies from server */
-       if(pthread_create(&tid2, NULL, recieve_packet, NULL) != 0){
+       if(pthread_create(&tid2, NULL, recieve_packets, NULL) != 0){
          perror("Could not start thread.\n");
          exit(EXIT_FAILURE);
        }
@@ -297,7 +297,7 @@
      /* Make client recieve responses from server */
      void u_prep_sending(){
        /* Start thread recieving replies from server */
-       if(pthread_create(&tid2, NULL, recieve_ack, NULL) != 0){
+       if(pthread_create(&tid2, NULL, recieve_acks, 0) != 0){
          perror("Could not start thread.\n");
          exit(EXIT_FAILURE);
        }
@@ -369,13 +369,13 @@
 
      /* RECIEVE PACKETS ONTO BUFFER */
      /* Process special flags and check for errors */
-     void recieve_packets(){
+     void* recieve_packets(void *arg){
          PACKET pack;
          while(FOREVER)
          {
              /* Kill thread if machine stops */
              if(state == TIME_WAIT){
-               return;
+               return NULL;
              }
 
              fflush(stdout);
@@ -418,17 +418,18 @@
                }
              }
          }
+         return NULL;
      }
 
      /* RECIEVE ACKS */
-     void recieve_acks()
+     void* recieve_acks(void* arg)
      {
          PACKET ack;
          while(FOREVER)
          {
              /* Kill thread if machine stops */
              if(state == TIME_WAIT){
-               return;
+               return NULL;
              }
 
              fflush(stdout);
@@ -464,6 +465,7 @@
                ack_buf.seq_2 = next_seq(ack_buf.seq_2);
              }
          }
+         return NULL;
      }
 
      /* TOOLS */

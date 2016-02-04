@@ -161,12 +161,14 @@ void send_ack(int seq){
   unsigned int slen = sizeof(server_socket_client_address);
   //SEND over network
   if(seq != -1){
+    printf("Socket: %d;\n", server_socket);
     if((sendto(server_socket, &ack_packet, sizeof(PACKET), 0, (struct sockaddr *) &server_socket_client_address, slen))==-1)
       {
           //die("sendto()");
           perror("Sendto.\n");
           exit(EXIT_FAILURE);
       }
+
     printf("SEND ACK: seq: %d;\n", ack_packet.seq);
   }
 }
@@ -205,7 +207,7 @@ void recieve_packet()
         printf("Data: %s\n" , pack.data);
     }
 
-    close(server_socket);
+
 }
 
 /* RECIEVE ACK */
@@ -836,6 +838,7 @@ void * STATE_MACHINE(void *arg){
             /*STATE: EXITING*/
             case EXITING:{
               printf("\nSTATE = EXITING\n");
+              close(server_socket);
               return NULL;
             } break;
 

@@ -159,6 +159,8 @@ void recieve_packet()
         if ((recv_len = recvfrom(server_socket, &pack, sizeof(PACKET), 0, (struct sockaddr *) &server_socket_client_address, sizeof(server_socket_client_address))) == -1)
         {
             //die("recvfrom()");
+            perror("Recvfrom.\n");
+            exit(EXIT_FAILURE);
         }
 
         printf("RECIEVE PACKET: placed in server buffer\n");
@@ -193,6 +195,8 @@ void OUT_send_packet(PACKET p){
   if(sendto(server_socket, &p, sizeof(PACKET), 0, (struct sockaddr *) &server_socket_address, server_socket_length)==-1)
     {
         //die("sendto()");
+        perror("Sendto.\n");
+        exit(EXIT_FAILURE);
     }
 }
 
@@ -314,6 +318,8 @@ int main(int argc, char *argv[]){
         if ((server_socket=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1)
         {
             //die("socket");
+            perror("Socket.\n");
+            exit(EXIT_FAILURE);
         }
         // zero out the structure
         memset((char *) &server_socket_self_address, 0, sizeof(server_socket_self_address));
@@ -326,6 +332,8 @@ int main(int argc, char *argv[]){
         if( bind(server_socket , (struct sockaddr*)&server_socket_self_address, sizeof(server_socket_self_address) ) == -1)
         {
             //die("bind");
+            perror("Bind.\n");
+            exit(EXIT_FAILURE);
         }
 
 
@@ -361,6 +369,8 @@ int main(int argc, char *argv[]){
         if ((server_socket=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1)
             {
                 //die("socket");
+                perror("Socket.\n");
+                exit(EXIT_FAILURE);
             }
         memset((char *) &server_socket_address, 0, sizeof(server_socket_address));
         server_socket_address.sin_family = AF_INET;

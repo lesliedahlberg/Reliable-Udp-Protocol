@@ -64,6 +64,20 @@ BUFFER server_buf;
 BUFFER client_buf;
 BUFFER ack_buf;
 
+/* INPUTs */
+typedef enum {
+  EXIT,NONE,CONNECT,CLOSE,SYN_ACK,SYN,ACK,FIN,FIN_ACK,TIMEOUT,RESET,GOOD_PACKET,BAD_PACKET,LISTEN
+} INPUT;
+
+/* STATES */
+typedef enum {
+  EXITING,CLOSED,SYN_SENT,PRE_ESTABLISHED,ESTABLISHED_CLIENT,LISTENING,SYN_RECIEVED,ESTABLISHED_SERVER,FIN_WAIT_1,FIN_WAIT_2,TIME_WAIT,CLOSING,CLOSE_WAIT,LAST_ACK
+} STATE;
+
+/* STATE MACHINE */
+STATE state;
+INPUT input;
+
 /* SOCKETS*/
 //Client
 struct sockaddr_in server_socket_address;
@@ -151,8 +165,10 @@ void send_ack(int seq){
 void recieve_packet()
 {
     PACKET pack;
-    while(1)
+    int i = 2;
+    while(i > 0)
     {
+        i--;
         printf("Waiting for data...");
         fflush(stdout);
 
@@ -227,19 +243,7 @@ int window_size(){
   return client_buf.seq_1 - client_buf.seq_2;
 }
 
-/* INPUTs */
-typedef enum {
-  EXIT,NONE,CONNECT,CLOSE,SYN_ACK,SYN,ACK,FIN,FIN_ACK,TIMEOUT,RESET,GOOD_PACKET,BAD_PACKET,LISTEN
-} INPUT;
 
-/* STATES */
-typedef enum {
-  EXITING,CLOSED,SYN_SENT,PRE_ESTABLISHED,ESTABLISHED_CLIENT,LISTENING,SYN_RECIEVED,ESTABLISHED_SERVER,FIN_WAIT_1,FIN_WAIT_2,TIME_WAIT,CLOSING,CLOSE_WAIT,LAST_ACK
-} STATE;
-
-/* STATE MACHINE */
-STATE state;
-INPUT input;
 
 /* TIMERS */
 TIMER syn_sent_timer;
@@ -349,15 +353,15 @@ int main(int argc, char *argv[]){
         sleep(1);
 
         recieve_packet();
+        sleep(1);
 
-
-        /*input = FIN;
+        input = FIN;
         sleep(1);
         input = CLOSE;
         sleep(1);
         input = ACK;
         sleep(1);
-        input = EXIT;*/
+        input = EXIT;
         getchar();
 
 
@@ -777,5 +781,5 @@ void * STATE_MACHINE(void *arg){
         }
         usleep(1000*100);
       }
-      
+
 }

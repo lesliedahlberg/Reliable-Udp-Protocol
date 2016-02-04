@@ -78,6 +78,8 @@ typedef enum {
 STATE state;
 INPUT input;
 
+int is_server;
+
 /* SOCKETS*/
 //Client
 struct sockaddr_in server_socket_address, client_address;
@@ -153,24 +155,38 @@ void send_packet(char data[32]){
 }
 
 /* SEND ACK */
-void send_ack(int seq){
+void send_ack(int seq, int ack, int syn, int fin){
   PACKET ack_packet;
 
-  ack_packet.ack = 1;
+  ack_packet.ack = ack;
   ack_packet.seq = seq;
-  unsigned int slen = sizeof(server_socket_client_address);
+  ack_packet.syn = syn;
+  ack_packet.fin = fin;
+  unsigned int slen;
   //SEND over network
-  if(seq != -1){
+  
     printf("Socket: %d;\n", server_socket);
-    if((sendto(server_socket, &ack_packet, sizeof(PACKET), 0, (struct sockaddr *) &server_socket_client_address, slen))==-1)
-      {
-          //die("sendto()");
-          perror("Sendto.\n");
-          exit(EXIT_FAILURE);
-      }
+    if(is_server == 1){
+      slen = sizeof(server_socket_client_address);
+      if((sendto(server_socket, &ack_packet, sizeof(PACKET), 0, (struct sockaddr *) &server_socket_client_address, slen))==-1)
+        {
+            //die("sendto()");
+            perror("Sendto.\n");
+            exit(EXIT_FAILURE);
+        }
+    }
+    else if(is_server == 0)
+    {
+        slen = sizeof(server_socket_address); 
+        if((sendto(server_socket, &ack_packet, sizeof(PACKET), 0, (struct sockaddr *) &server_socket_address, slen))==-1)
+        {
+            //die("sendto()");
+            perror("Sendto.\n");
+            exit(EXIT_FAILURE);
+        }
+    }
 
-    printf("SEND ACK: seq: %d;\n", ack_packet.seq);
-  }
+    printf("SEND ACK: seq: %d; ack: %d; syn:%d; fin:%d;\n", ack_packet.seq, ack_packet.ack, ack_packet.syn, ack_packet.fin);
 }
 
 /* RECIEVE PACKET */
@@ -383,6 +399,7 @@ int main(int argc, char *argv[]){
   if(argc == 2){
     /* START AS SERVER */
     if(!strcmp(argv[1], "server")){
+      is_server = 1;
         printf("<<<<<<SERVER>>>>>>:\n");
 
         if ((server_socket=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1)
@@ -430,6 +447,7 @@ int main(int argc, char *argv[]){
 
 
     }else if(!strcmp(argv[1], "client")){
+      is_server = 0;
         /* START AS CLIENT */
         printf("<<<<<<CLIENT>>>>>>:\n");
         //Connect client

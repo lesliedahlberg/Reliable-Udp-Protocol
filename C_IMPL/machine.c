@@ -12,6 +12,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <math.h>
+#include <signal.h>
 
 #define FOREVER 1
 #define MODULO 1024
@@ -161,6 +162,9 @@
 
      /* Start Protocol */
      void u_start(){
+        printf("u_start()\n");
+
+
 
          is_server = 0;
 
@@ -214,6 +218,7 @@
 
      /* Close protocol */
      void u_close(){
+       printf("u_close()\n");
        input = CLOSE;
      }
 
@@ -222,6 +227,7 @@
 
      /* Listen to connections */
      void u_listen(){
+         printf("u_listen()\n");
          input = LISTEN;
          is_server = 1;
          if ((server_socket=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1)
@@ -249,6 +255,7 @@
      /* Start recieving packages from network onto buffer */
      void u_start_recieving()
      {
+       printf("u_start_recieving()\n");
        /* Start thread recieving replies from server */
        if(pthread_create(&tid2, NULL, recieve_packets, NULL) != 0){
          perror("Could not start thread.\n");
@@ -261,6 +268,7 @@
 
      /* Connect to server */
      void u_connect(){
+         printf("u_connect()\n");
          input = CONNECT;
          //Connect client
          if ((server_socket=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1)
@@ -296,6 +304,7 @@
 
      /* Make client recieve responses from server */
      void u_prep_sending(){
+       printf("u_prep_sending()\n");
        /* Start thread recieving replies from server */
        if(pthread_create(&tid2, NULL, recieve_acks, 0) != 0){
          perror("Could not start thread.\n");
@@ -305,6 +314,7 @@
 
      /* Send stream of data to server */
      void u_send(char* data, int length){
+       printf("u_send()\n");
        float p = (float) length / PACKET_DATA_SIZE;
        int packets = (int) ceil(p);
        int i = 0;
@@ -333,6 +343,9 @@
        strcpy(client_buf.packet[client_buf.seq_0].data, data);
        client_buf.packet[client_buf.seq_0].seq = client_buf.seq_0;
        client_buf.packet[client_buf.seq_0].sum = ip_checksum(&client_buf.packet[client_buf.seq_0], sizeof(PACKET));
+
+       printf(">>BUF:%s;\n", client_buf.packet[client_buf.seq_0].data);
+
        client_buf.seq_0 = next_seq(client_buf.seq_0);
      }
 
@@ -373,6 +386,8 @@
          PACKET pack;
          while(FOREVER)
          {
+
+             
              /* Kill thread if machine stops */
              if(state == TIME_WAIT){
                return NULL;
@@ -427,6 +442,7 @@
          PACKET ack;
          while(FOREVER)
          {
+             printf("+");
              /* Kill thread if machine stops */
              if(state == TIME_WAIT){
                return NULL;
@@ -473,7 +489,8 @@
 
      /* WINDOW SIZE */
      int client_window(){
-       if(client_buf.seq_1 > client_buf.seq_2){
+
+       if(client_buf.seq_1 >= client_buf.seq_2){
          return client_buf.seq_1 - client_buf.seq_2;
        }else{
          return MODULO - (client_buf.seq_1 - client_buf.seq_2);
@@ -705,6 +722,7 @@
                  /*=============*/
                  /*STATE: ESTABLISHED_CLIENT*/
                  case ESTABLISHED_CLIENT:{
+
                    //printf("\nSTATE = ESTABLISHED_CLIENT\n");
                    if(input == CLOSE){
                      printf("ESTABLISHED_CLIENT >> IN: CLOSE\n");
@@ -723,11 +741,13 @@
                          client_buf.seq_2 = next_seq(client_buf.seq_2);
                          //ack_buf.seq_1 = next_seq(ack_buf.seq_1);
 
+
                        }
                        ack_buf.seq_1 = next_seq(ack_buf.seq_1);
                      }
 
-                     if(client_buf.seq_0 > client_buf.seq_1 && client_window() < WINDOW){
+                     if(client_buf.seq_0 > client_buf.seq_1 && client_window() < window){
+
                        //printf("WINDOW: %d < %d\n", client_window(), WINDOW);
                        OUT_send_packet(client_buf.packet[client_buf.seq_1]);
                        if(client_established[client_buf.seq_1].on == -1){
@@ -743,9 +763,6 @@
                        client_established[client_buf.seq_1].length = clock_time(10);
                        //printf("SET TIMER: %d; ON=%d;\n", client_buf.seq_1, client_established[client_buf.seq_1].on);
                        client_buf.seq_1 = next_seq(client_buf.seq_1);
-                     }else{
-
-
                      }
 
 
@@ -814,6 +831,7 @@
                  /*=============*/
                  /*STATE: ESTABLISHED_SERVER*/
                  case ESTABLISHED_SERVER:{
+
                      //printf("\nSTATE = ESTABLISHED_SERVER\n");
                    if(input == FIN){
                      printf("ESTABLISHED_SERVER >> IN: FIN\n");
@@ -1006,21 +1024,29 @@
   /* MAIN */
   /* ==== */
   int main(int argc, char *argv[]){
+
+
+
     if(argc == 2){
       /* START AS SERVER */
       if(!strcmp(argv[1], "server")){
           u_start();
           u_listen();
           u_start_recieving();
-          getchar();
+          while(1){
+            getchar();
+          }
+
       }else if(!strcmp(argv[1], "client")){
           /* START AS CLIENT */
           u_start();
           u_connect();
           u_send("Archives (static libraries) are acted upon differently than are shared objects (dynamic libraries). With dynamic libraries, all the library symbols go into the virtual address space of the output file, and all the symbols are available to all the other files in the link. In contrast, static linking only looks through the archive for the undefined symbols presently known to the loader at the time the archive is processed.", sizeof("Archives (static libraries) are acted upon differently than are shared objects (dynamic libraries). With dynamic libraries, all the library symbols go into the virtual address space of the output file, and all the symbols are available to all the other files in the link. In contrast, static linking only looks through the archive for the undefined symbols presently known to the loader at the time the archive is processed."));
           u_prep_sending();
-          getchar();
-          u_close();
+          while(1){
+            getchar();
+          }
+          //u_close();
       }
     }else{
         /* EXIT */

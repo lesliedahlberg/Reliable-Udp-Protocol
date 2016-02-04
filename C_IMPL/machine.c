@@ -224,6 +224,26 @@
      void u_listen(){
          input = LISTEN;
          is_server = 1;
+         if ((server_socket=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1)
+         {
+             //die("socket");
+             perror("Socket.\n");
+             exit(EXIT_FAILURE);
+         }
+         // zero out the structure
+         memset((char *) &server_socket_self_address, 0, sizeof(server_socket_self_address));
+
+         server_socket_self_address.sin_family = AF_INET;
+         server_socket_self_address.sin_port = htons(SERVER_PORT);
+         server_socket_self_address.sin_addr.s_addr = htonl(INADDR_ANY);
+
+         //bind socket to port
+         if( bind(server_socket , (struct sockaddr*)&server_socket_self_address, sizeof(server_socket_self_address) ) == -1)
+         {
+             //die("bind");
+             perror("Bind.\n");
+             exit(EXIT_FAILURE);
+         }
      }
 
      /* Start recieving packages from network onto buffer */
@@ -242,6 +262,36 @@
      /* Connect to server */
      void u_connect(){
          input = CONNECT;
+         //Connect client
+         if ((server_socket=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1)
+             {
+                 //die("socket");
+                 perror("Socket.\n");
+                 exit(EXIT_FAILURE);
+             }
+         memset((char *) &server_socket_address, 0, sizeof(server_socket_address));
+         server_socket_address.sin_family = AF_INET;
+         server_socket_address.sin_port = htons(SERVER_PORT);
+
+         // zero out the structure
+         memset((char *) &client_address, 0, sizeof(client_address));
+         client_address.sin_family = AF_INET;
+         client_address.sin_port = htons(SERVER_PORT+1);
+         client_address.sin_addr.s_addr = htonl(INADDR_ANY);
+         //bind socket to port
+         if( bind(server_socket , (struct sockaddr*)&client_address, sizeof(client_address) ) == -1)
+         {
+             //die("bind");
+             perror("Bind.\n");
+             exit(EXIT_FAILURE);
+         }
+
+         if (inet_aton(SERVER_IP , &server_socket_address.sin_addr) == 0)
+             {
+
+                 fprintf(stderr, "inet_aton() failed\n");
+                 exit(1);
+             }
      }
 
      /* Make client recieve responses from server */
@@ -948,132 +998,31 @@
      }
 
 
+  /* ============================= */
+
+
   /* MAIN */
+  /* ==== */
   int main(int argc, char *argv[]){
     if(argc == 2){
       /* START AS SERVER */
       if(!strcmp(argv[1], "server")){
-          printf("<<<<<<SERVER>>>>>>:\n");
-
-          if ((server_socket=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1)
-          {
-              //die("socket");
-              perror("Socket.\n");
-              exit(EXIT_FAILURE);
-          }
-          // zero out the structure
-          memset((char *) &server_socket_self_address, 0, sizeof(server_socket_self_address));
-
-          server_socket_self_address.sin_family = AF_INET;
-          server_socket_self_address.sin_port = htons(SERVER_PORT);
-          server_socket_self_address.sin_addr.s_addr = htonl(INADDR_ANY);
-
-          //bind socket to port
-          if( bind(server_socket , (struct sockaddr*)&server_socket_self_address, sizeof(server_socket_self_address) ) == -1)
-          {
-              //die("bind");
-              perror("Bind.\n");
-              exit(EXIT_FAILURE);
-          }
-
-
           u_start();
-          sleep(1);
           u_listen();
           u_start_recieving();
-          //sleep(1);
-          //input = SYN;
-          //sleep(1);
-          //input = ACK;
-          //sleep(1);
-
-          //sleep(1);
-
-          /*input = FIN;
-          sleep(1);
-          input = CLOSE;
-          sleep(1);
-          input = ACK;
-          sleep(1);
-          input = EXIT;*/
           getchar();
-
-
       }else if(!strcmp(argv[1], "client")){
-
           /* START AS CLIENT */
-          printf("<<<<<<CLIENT>>>>>>:\n");
-          //Connect client
-          if ((server_socket=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1)
-              {
-                  //die("socket");
-                  perror("Socket.\n");
-                  exit(EXIT_FAILURE);
-              }
-          memset((char *) &server_socket_address, 0, sizeof(server_socket_address));
-          server_socket_address.sin_family = AF_INET;
-          server_socket_address.sin_port = htons(SERVER_PORT);
-
-          // zero out the structure
-          memset((char *) &client_address, 0, sizeof(client_address));
-          client_address.sin_family = AF_INET;
-          client_address.sin_port = htons(SERVER_PORT+1);
-          client_address.sin_addr.s_addr = htonl(INADDR_ANY);
-          //bind socket to port
-          if( bind(server_socket , (struct sockaddr*)&client_address, sizeof(client_address) ) == -1)
-          {
-              //die("bind");
-              perror("Bind.\n");
-              exit(EXIT_FAILURE);
-          }
-
-          if (inet_aton(SERVER_IP , &server_socket_address.sin_addr) == 0)
-              {
-
-                  fprintf(stderr, "inet_aton() failed\n");
-                  exit(1);
-              }
-          //Run machine
           u_start();
-          sleep(1);
-
           u_connect();
-          //input = CONNECT;
-          sleep(1);
-
-          //input = SYN_ACK;
-          //sleep(1);
-
-          //send_packet("MSG1");
-          //send_packet("MSG2");
-          //send_packet("MSG3");
-          //send_packet("MSG4");
           u_send("Archives (static libraries) are acted upon differently than are shared objects (dynamic libraries). With dynamic libraries, all the library symbols go into the virtual address space of the output file, and all the symbols are available to all the other files in the link. In contrast, static linking only looks through the archive for the undefined symbols presently known to the loader at the time the archive is processed.", sizeof("Archives (static libraries) are acted upon differently than are shared objects (dynamic libraries). With dynamic libraries, all the library symbols go into the virtual address space of the output file, and all the symbols are available to all the other files in the link. In contrast, static linking only looks through the archive for the undefined symbols presently known to the loader at the time the archive is processed."));
-
           u_prep_sending();
-
-
-
-          sleep(10);
-
-          u_close();
-          //input = CLOSE;
-          /*sleep(1);
-
-          input = ACK;
-          sleep(1);
-
-          input = FIN;
-          sleep(1);
-
-          input = EXIT;*/
-
           getchar();
-
+          u_close();
       }
     }else{
         /* EXIT */
-        printf("INVALID\n");
+        printf("INVALID ARGUMENTS\n");
         return 0;
     }
 

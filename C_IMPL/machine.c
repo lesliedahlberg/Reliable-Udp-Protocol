@@ -101,6 +101,8 @@ BUFFER server_buf;
 BUFFER client_buf;
 BUFFER ack_buf;
 
+int first_ack;
+
 /* INPUTs */
 typedef enum {
   EXIT,NONE,CONNECT,CLOSE,SYN_ACK,SYN,ACK,FIN,FIN_ACK,TIMEOUT,RESET,GOOD_PACKET,BAD_PACKET,LISTEN
@@ -156,6 +158,20 @@ int next_ack(int ack){
   }
 }
 
+/* MODULO PREV. ACK. IN INCOMING SLIDING WINDOW */
+int prev_ack(int ack){
+  if(ack == 0){
+    if(first_ack == 1){
+      return 0;
+    }else{
+      return WINDOW_MODULO - 1;
+    }
+
+  }else{
+    return ack-1;
+  }
+}
+
 /* TIMER FUNCTIONS */
 int timeout(TIMER t){
     if(clock()-t.start >= t.length){
@@ -184,6 +200,7 @@ clock_t clock_time(int milli_seconds){
 
 /* SEND PACKET */
 void send_packet(char data[32]){
+
   //printf("SEND PACKET: placed in client buffer\n");
   strcpy(client_buf.packet[client_buf.seq_0].data, data);
   client_buf.packet[client_buf.seq_0].seq = client_buf.seq_0;
@@ -258,21 +275,37 @@ void recieve_packet()
         }else if(pack.syn == 1){
           input = SYN;
         }else{
-          i--;
-          //printf("RECIEVE PACKET: placed in server buffer\n");
-          strcpy(server_buf.packet[server_buf.seq_2].data, pack.data);
-          server_buf.packet[server_buf.seq_2].ack = pack.ack;
-          server_buf.packet[server_buf.seq_2].fin = pack.fin;
-          server_buf.packet[server_buf.seq_2].syn = pack.syn;
-          server_buf.packet[server_buf.seq_2].sum = pack.sum;
-          server_buf.packet[server_buf.seq_2].seq = pack.seq;
-          server_buf.seq_2 = next_seq(server_buf.seq_2);
+
+
+
+
+          if(ip_checksum(&pack, sizeof(PACKET)) == 0){
+            if(pack.seq == server_buf.seq_1){
+
+
+              i--;
+              printf("RECIEVE PACKET: placed in server buffer\n");
+              //printf("Received packet from %s:%d\n", inet_ntoa(server_socket_client_address.sin_addr), ntohs(server_socket_client_address.sin_port));
+              printf("Data: %s\n" , pack.data);
+              strcpy(server_buf.packet[server_buf.seq_2].data, pack.data);
+              server_buf.packet[server_buf.seq_2].ack = pack.ack;
+              server_buf.packet[server_buf.seq_2].fin = pack.fin;
+              server_buf.packet[server_buf.seq_2].syn = pack.syn;
+              server_buf.packet[server_buf.seq_2].sum = pack.sum;
+              server_buf.packet[server_buf.seq_2].seq = pack.seq;
+              server_buf.seq_2 = next_seq(server_buf.seq_2);
+            }
+          }else{
+            printf("BAD PACKET\n");
+
+
+          }
+
         }
 
 
         //print details of the client/peer and the data received
-        //printf("Received packet from %s:%d\n", inet_ntoa(server_socket_client_address.sin_addr), ntohs(server_socket_client_address.sin_port));
-        //printf("Data: %s\n" , pack.data);
+
     }
 
 
@@ -312,6 +345,7 @@ void recieve_ack()
         }else{
           i--;
           //printf("RECIEVE ACK: placed in server buffer\n");
+          printf("RECV ACK: %d\n", ack.seq);
           strcpy(ack_buf.packet[ack_buf.seq_2].data, ack.data);
           ack_buf.packet[ack_buf.seq_2].ack = ack.ack;
           ack_buf.packet[ack_buf.seq_2].fin = ack.fin;
@@ -337,7 +371,7 @@ void recieve_ack()
 
 /* OUT FUNCTIONS */
 void OUT_send_ack(int seq){
-  printf("OUT: send ack\n");
+  printf("OUT: send ack %d\n", seq);
   send_ack(seq, 1, 0, 0);
 }
 
@@ -348,6 +382,12 @@ void OUT_send_syn(){
 
 void OUT_send_packet(PACKET p){
   printf("OUT: send packet; DATA = %s;\n", p.data);
+  p.sum = 0;
+  p.sum = ip_checksum(&p, sizeof(PACKET));
+  if(rand()%2){
+    p.sum = 0;
+  }
+
   if(sendto(server_socket, &p, sizeof(PACKET), 0, (struct sockaddr *) &server_socket_address, server_socket_length)==-1)
     {
         //die("sendto()");
@@ -377,9 +417,17 @@ int PACKET_ACK(PACKET t){
 }
 
 int IS_PACKET_BAD(PACKET t){
-  printf("CHECKSUM:%d\n", ip_checksum(&t, sizeof(PACKET)));
-
   return 0;
+
+  if(ip_checksum(&t, sizeof(PACKET)) == 0){
+      printf("CHECKSUM:%d\n", ip_checksum(&t, sizeof(PACKET)));
+      return 0;
+
+
+  }else{
+    printf("CHECKSUM:%d\n", ip_checksum(&t, sizeof(PACKET)));
+    return 1;
+  }
 }
 
 int window_size(){
@@ -404,6 +452,13 @@ TIMER last_ack_timer;
 int window = 512;
 
 void start(){
+
+    /* Intializes random number generator */
+    time_t t;
+    srand((unsigned) time(&t));
+
+    first_ack = 1;
+
     /* BUFFERS */
     server_buf.seq_0 = 0; //Not used
     server_buf.seq_1 = 0; //Next packet to ack
@@ -692,11 +747,13 @@ void * STATE_MACHINE(void *arg){
                   if(ack_buf.packet[ack_buf.seq_1].seq == client_buf.seq_2){
                     //printf("-----ACCEPTABLE ACK-------\n");
                     //printf("ACKBUF.seq:%d == client_buf.seq_2:%d\n", ack_buf.packet[ack_buf.seq_1].seq, client_buf.seq_2);
+                    //printf("RECV ACK %d;\n", client_buf.seq_2);
                     reset_timer(&client_established[client_buf.seq_2]);
                     client_buf.seq_2 = next_seq(client_buf.seq_2);
-                    ack_buf.seq_1 = next_seq(ack_buf.seq_1);
+                    //ack_buf.seq_1 = next_seq(ack_buf.seq_1);
 
                   }
+                  ack_buf.seq_1 = next_seq(ack_buf.seq_1);
                 }
 
                 if(client_buf.seq_0 > client_buf.seq_1 && window_size() < WINDOW){
@@ -794,14 +851,17 @@ void * STATE_MACHINE(void *arg){
                 state = CLOSE_WAIT;
               }else{
                 if(server_buf.seq_1 < server_buf.seq_2){
-                  if(IS_PACKET_BAD(server_buf.packet[server_buf.seq_1]) == 1 || PACKET_ACK(server_buf.packet[server_buf.seq_1]) != server_buf.seq_1){
-                    printf("ESTABLISHED_SERVER >> discard old packet\n");
-                    OUT_send_ack(server_buf.seq_1);
+                  if(IS_PACKET_BAD(server_buf.packet[server_buf.seq_1]) == 1 || server_buf.packet[server_buf.seq_1].seq != server_buf.seq_1){
+                    if(first_ack == 0){
+                      printf("ESTABLISHED_SERVER >> discard old packet :ack %d;\n", prev_ack(server_buf.seq_1));
+                      OUT_send_ack(prev_ack(server_buf.seq_1));
+                    }
                   }else{
                     printf("ESTABLISHED_SERVER >> new packet\n");
                     printf("RECV: DATA=%s;\n", server_buf.packet[server_buf.seq_1].data);
                     OUT_send_ack(PACKET_ACK(server_buf.packet[server_buf.seq_1]));
                     server_buf.seq_1 = next_seq(server_buf.seq_1);
+                    first_ack = 0;
                   }
                 }
               }

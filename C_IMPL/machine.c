@@ -17,22 +17,146 @@
 #define MODULO 1024
 #define WINDOW_MODULO 1024
 #define WINDOW 2
-
 #define SERVER_IP "127.0.0.111"
 #define SERVER_PORT 8888
 #define PACKET_DATA_SIZE 32
 
+/* =================
+   TYPES
+   ================= */
+
+   /* INPUTs */
+   typedef enum {
+     EXIT,NONE,CONNECT,CLOSE,SYN_ACK,SYN,ACK,FIN,FIN_ACK,TIMEOUT,RESET,GOOD_PACKET,BAD_PACKET,LISTEN
+   } INPUT;
+
+   /* STATES */
+   typedef enum {
+     EXITING,CLOSED,SYN_SENT,PRE_ESTABLISHED,ESTABLISHED_CLIENT,LISTENING,SYN_RECIEVED,ESTABLISHED_SERVER,FIN_WAIT_1,FIN_WAIT_2,TIME_WAIT,CLOSING,CLOSE_WAIT,LAST_ACK
+   } STATE;
+
+   /* PACKET */
+   typedef struct {
+     int seq;
+     int ack;
+     int fin;
+     int syn;
+     short int sum;
+     char data[32];
+   } PACKET;
+
+   /* BUFFER */
+   typedef struct {
+     int seq_0;
+     int seq_1;
+     int seq_2;
+     int last_ack;
+     PACKET packet[MODULO];
+   } BUFFER;
+
+   /* TIMER */
+   typedef struct {
+       int on;
+       clock_t start;
+       clock_t length;
+   } TIMER;
+
+/* =================
+   GLOBALS
+   ================= */
+
+   /* STATE MACHINE */
+   STATE state;
+   INPUT input;
+
+   /* BUFFERS */
+   BUFFER server_buf;
+   BUFFER client_buf;
+   BUFFER ack_buf;
+
+   /* TIMERS */
+   TIMER syn_sent_timer;
+   TIMER pre_established_timer;
+   TIMER syn_recieved_timer;
+   TIMER client_established[MODULO];
+   TIMER fin_wait_1_timer;
+   TIMER time_wait_timer;
+   TIMER closing_timer;
+   TIMER close_wait_timer;
+   TIMER last_ack_timer;
+
+   /* SLIDING WINDOW*/
+   int window = 4;
+
+   /* SOCKETS*/
+   struct sockaddr_in server_socket_address;
+   struct sockaddr_in client_address;
+   struct sockaddr_in server_socket_self_address;
+   struct sockaddr_in server_socket_client_address;
+
+   int server_socket;
+   int recv_len;
+   int server_socket_length = sizeof(server_socket_address);
+
+   /* THREADs */
+   pthread_t tid
+   pthread_t tid2;
+
+   /* ADDITIONAL VARIABLES */
+   int first_ack;
+   int is_server;
+
+ /* =================
+    FUNCTION DEFINITIONS
+    ================= */
+
+    /* USER CONTROL */
+    void start();
+    void u_connect();
+    void u_listen();
+    void u_close();
+    void send_string(char* data, int length);
+
+
+    /* INTERNAL */
+    void* STATE_MACHINE(void* arg);
+    void send_packet(char data[32]);
+    void send_ack(int seq, int ack, int syn, int fin);
+    void recieve_packet();
+    void recieve_ack();
+    int client_window();
+    int next_seq(int seq);
+    int next_ack(int ack);
+    int prev_ack(int ack)
+    int timeout(TIMER t);
+    void reset_timer(TIMER *t);
+    void decrease_timer(TIMER *t);
+    clock_t clock_time(int milli_seconds);
+    uint16_t ip_checksum(void* vdata,size_t length);
+
+    /* STATE MACHINE - OUTPUT */
+    void OUT_send_ack(int seq);
+    void OUT_send_syn();
+    void OUT_send_packet(PACKET p);
+    void OUT_send_syn_ack();
+    void OUT_send_fin();
+    void OUT_send_fin_ack();
+    int PACKET_ACK(PACKET t);
+    int IS_PACKET_BAD(PACKET t);
+
+
+
+
+
+//==============================================
 
 
 /* CHECKSUM */
-
 uint16_t ip_checksum(void* vdata,size_t length) {
     // Cast the data pointer to one that can be indexed.
     char* data=(char*)vdata;
-
     // Initialise the accumulator.
     uint32_t acc=0xffff;
-
     size_t i;
     // Handle complete 16-bit blocks.
     for (i=0;i+1<length;i+=2) {
@@ -43,7 +167,6 @@ uint16_t ip_checksum(void* vdata,size_t length) {
             acc-=0xffff;
         }
     }
-
     // Handle any partial block at the end of the data.
     if (length&1) {
         uint16_t word=0;
@@ -53,81 +176,26 @@ uint16_t ip_checksum(void* vdata,size_t length) {
             acc-=0xffff;
         }
     }
-
     // Return the checksum in network byte order.
     return htons(~acc);
 }
 
-/* THREADs */
-pthread_t tid, tid2;
 
-/* PACKET */
-typedef struct {
-  int seq;
-  int ack;
-  int fin;
-  int syn;
-  short int sum;
-  char data[32];
-} PACKET;
 
-/* BUFFER */
-typedef struct {
-  int seq_0;
-  int seq_1;
-  int seq_2;
-  int last_ack;
-  PACKET packet[MODULO];
-} BUFFER;
 
-/* TIMER */
-typedef struct {
-    int on;
-    clock_t start;
-    clock_t length;
-} TIMER;
 
-/* FUNCTIONS */
-void* STATE_MACHINE(void* arg);
-int client_window();
-int next_seq(int seq);
-int next_ack(int ack);
-int timeout(TIMER t);
-void reset_timer(TIMER *t);
-void decrease_timer(TIMER *t);
-clock_t clock_time(int milli_seconds);
-void start();
 
-/* BUFFERS */
-BUFFER server_buf;
-BUFFER client_buf;
-BUFFER ack_buf;
 
-int first_ack;
 
-/* INPUTs */
-typedef enum {
-  EXIT,NONE,CONNECT,CLOSE,SYN_ACK,SYN,ACK,FIN,FIN_ACK,TIMEOUT,RESET,GOOD_PACKET,BAD_PACKET,LISTEN
-} INPUT;
 
-/* STATES */
-typedef enum {
-  EXITING,CLOSED,SYN_SENT,PRE_ESTABLISHED,ESTABLISHED_CLIENT,LISTENING,SYN_RECIEVED,ESTABLISHED_SERVER,FIN_WAIT_1,FIN_WAIT_2,TIME_WAIT,CLOSING,CLOSE_WAIT,LAST_ACK
-} STATE;
 
-/* STATE MACHINE */
-STATE state;
-INPUT input;
 
-int is_server;
 
-/* SOCKETS*/
-//Client
-struct sockaddr_in server_socket_address, client_address;
-int server_socket, server_socket_length=sizeof(server_socket_address);
-//Server
-struct sockaddr_in server_socket_self_address, server_socket_client_address;
-int server_socket, i, recv_len;
+
+
+
+
+
 
 
 /* WINDOW SIZE */
@@ -457,19 +525,9 @@ int window_size(){
 
 
 
-/* TIMERS */
-TIMER syn_sent_timer;
-TIMER pre_established_timer;
-TIMER syn_recieved_timer;
-TIMER client_established[MODULO];
-TIMER fin_wait_1_timer;
-TIMER time_wait_timer;
-TIMER closing_timer;
-TIMER close_wait_timer;
-TIMER last_ack_timer;
 
-/* SLIDING WINDOW*/
-int window = 512;
+
+
 
 void start(){
 

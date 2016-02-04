@@ -194,9 +194,9 @@ void recieve_packet()
 {
     PACKET pack;
     int i = 4;
-    while(i > 0)
+    while(1)
     {
-        i--;
+
         printf("Waiting for data...");
         fflush(stdout);
 
@@ -220,6 +220,7 @@ void recieve_packet()
         }else if(pack.syn == 1){
           input = SYN;
         }else{
+          i--;
           printf("RECIEVE PACKET: placed in server buffer\n");
           strcpy(server_buf.packet[server_buf.seq_2].data, pack.data);
           server_buf.packet[server_buf.seq_2].ack = pack.ack;
@@ -244,9 +245,9 @@ void recieve_ack()
 {
     PACKET ack;
     int i = 4;
-    while(i > 0)
+    while(1)
     {
-        i--;
+
         printf("Waiting for ack...");
         fflush(stdout);
 
@@ -259,20 +260,38 @@ void recieve_ack()
             exit(EXIT_FAILURE);
         }
 
-        printf("RECIEVE ACK: placed in server buffer\n");
-        strcpy(ack_buf.packet[ack_buf.seq_2].data, ack.data);
-        ack_buf.packet[ack_buf.seq_2].ack = ack.ack;
-        ack_buf.packet[ack_buf.seq_2].fin = ack.fin;
-        ack_buf.packet[ack_buf.seq_2].syn = ack.syn;
-        ack_buf.packet[ack_buf.seq_2].sum = ack.sum;
-        ack_buf.packet[ack_buf.seq_2].seq = ack.seq;
+
+        if(ack.syn == 1 && ack.ack == 1){
+          input = SYN_ACK;
+        }else if(ack.fin == 1 && ack.ack == 1){
+          input = FIN_ACK;
+        }else if(ack.fin == 1){
+          input = FIN;
+        }else if(ack.ack == 1 && ack.seq == -1){
+          input = ACK;
+        }else if(ack.syn == 1){
+          input = SYN;
+        }else{
+          i--;
+          printf("RECIEVE ACK: placed in server buffer\n");
+          strcpy(ack_buf.packet[ack_buf.seq_2].data, ack.data);
+          ack_buf.packet[ack_buf.seq_2].ack = ack.ack;
+          ack_buf.packet[ack_buf.seq_2].fin = ack.fin;
+          ack_buf.packet[ack_buf.seq_2].syn = ack.syn;
+          ack_buf.packet[ack_buf.seq_2].sum = ack.sum;
+          ack_buf.packet[ack_buf.seq_2].seq = ack.seq;
+          ack_buf.seq_2 = next_seq(ack_buf.seq_2);
+          //print details of the client/peer and the data received
+          printf("Received ack from %s:%d\n", inet_ntoa(server_socket_address.sin_addr), ntohs(server_socket_address.sin_port));
+          printf("ACK_SEQ: %d:%d, %d\n", ack.seq, ack.ack, ack_buf.packet[ack_buf.seq_2].seq);
+        }
 
 
-        //print details of the client/peer and the data received
-        printf("Received ack from %s:%d\n", inet_ntoa(server_socket_address.sin_addr), ntohs(server_socket_address.sin_port));
-        printf("ACK_SEQ: %d:%d, %d\n", ack.seq, ack.ack, ack_buf.packet[ack_buf.seq_2].seq);
 
-        ack_buf.seq_2 = next_seq(ack_buf.seq_2);
+
+
+
+
     }
 
 
@@ -324,6 +343,7 @@ int IS_PACKET_BAD(){
 }
 
 int window_size(){
+  //printf("WINDOW SIZE(): %d - %d = %d\n", client_buf.seq_1, client_buf.seq_2, client_buf.seq_1-client_buf.seq_2);
   return client_buf.seq_1 - client_buf.seq_2;
 }
 
@@ -431,14 +451,14 @@ int main(int argc, char *argv[]){
         start();
         sleep(1);
         input = LISTEN;
-        sleep(1);
-        input = SYN;
-        sleep(1);
-        input = ACK;
-        sleep(1);
-
         recieve_packet();
-        sleep(1);
+        //sleep(1);
+        //input = SYN;
+        //sleep(1);
+        //input = ACK;
+        //sleep(1);
+
+        //sleep(1);
 
         /*input = FIN;
         sleep(1);
@@ -492,8 +512,8 @@ int main(int argc, char *argv[]){
         input = CONNECT;
         sleep(1);
 
-        input = SYN_ACK;
-        sleep(1);
+        //input = SYN_ACK;
+        //sleep(1);
 
         send_packet("MSG1");
         send_packet("MSG2");
@@ -530,6 +550,7 @@ int main(int argc, char *argv[]){
 void * STATE_MACHINE(void *arg){
       /* RUN */
       while(FOREVER) {
+        //printf("seq1:%d - seq2:%d = winsize:%d\n", client_buf.seq_1, client_buf.seq_2, client_buf.seq_1-client_buf.seq_2);
         /* STATE CHECK */
         switch(state){
 

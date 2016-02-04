@@ -10,6 +10,7 @@
 #include <netdb.h>
 #include <pthread.h>
 #include <string.h>
+#include <stdint.h>
 
 #define FOREVER 1
 #define MODULO 1024
@@ -19,8 +20,44 @@
 #define SERVER_IP "127.0.0.111"
 #define SERVER_PORT 8888
 
+
+
+/* CHECKSUM */
+
+uint16_t ip_checksum(void* vdata,size_t length) {
+    // Cast the data pointer to one that can be indexed.
+    char* data=(char*)vdata;
+
+    // Initialise the accumulator.
+    uint32_t acc=0xffff;
+
+    size_t i;
+    // Handle complete 16-bit blocks.
+    for (i=0;i+1<length;i+=2) {
+        uint16_t word;
+        memcpy(&word,data+i,2);
+        acc+=ntohs(word);
+        if (acc>0xffff) {
+            acc-=0xffff;
+        }
+    }
+
+    // Handle any partial block at the end of the data.
+    if (length&1) {
+        uint16_t word=0;
+        memcpy(&word,data+length-1,1);
+        acc+=ntohs(word);
+        if (acc>0xffff) {
+            acc-=0xffff;
+        }
+    }
+
+    // Return the checksum in network byte order.
+    return htons(~acc);
+}
+
 /* THREADs */
-pthread_t tid;
+pthread_t tid, tid2;
 
 /* PACKET */
 typedef struct {
@@ -28,7 +65,7 @@ typedef struct {
   int ack;
   int fin;
   int syn;
-  int sum;
+  short int sum;
   char data[32];
 } PACKET;
 
@@ -150,8 +187,9 @@ void send_packet(char data[32]){
   //printf("SEND PACKET: placed in client buffer\n");
   strcpy(client_buf.packet[client_buf.seq_0].data, data);
   client_buf.packet[client_buf.seq_0].seq = client_buf.seq_0;
+  client_buf.packet[client_buf.seq_0].sum = ip_checksum(&client_buf.packet[client_buf.seq_0], sizeof(PACKET));
+  printf("CHECKSUM:%04X\n", client_buf.packet[client_buf.seq_0].sum);
   client_buf.seq_0 = next_seq(client_buf.seq_0);
-
 }
 
 /* SEND ACK */
@@ -338,7 +376,9 @@ int PACKET_ACK(PACKET t){
   //return next_ack(server_buf.last_ack);
 }
 
-int IS_PACKET_BAD(){
+int IS_PACKET_BAD(PACKET t){
+  printf("CHECKSUM:%d\n", ip_checksum(&t, sizeof(PACKET)));
+
   return 0;
 }
 
@@ -519,12 +559,19 @@ int main(int argc, char *argv[]){
         send_packet("MSG2");
         send_packet("MSG3");
         send_packet("MSG4");
-        recieve_ack();
-        /*sleep(5);
+
+        /* Start thread recieving replies from server */
+        if(pthread_create(&tid2, NULL, recieve_ack, NULL) != 0){
+          perror("Could not start thread.\n");
+          exit(EXIT_FAILURE);
+        }
+
+
+        sleep(10);
 
 
         input = CLOSE;
-        sleep(1);
+        /*sleep(1);
 
         input = ACK;
         sleep(1);
@@ -601,6 +648,7 @@ void * STATE_MACHINE(void *arg){
                         if(syn_sent_timer.on == 0){
                             reset_timer(&syn_sent_timer);
                             state = CLOSED;
+                            printf("CLOSING\n");
                         }
                     }
                 }
@@ -746,11 +794,11 @@ void * STATE_MACHINE(void *arg){
                 state = CLOSE_WAIT;
               }else{
                 if(server_buf.seq_1 < server_buf.seq_2){
-                  if(/*IS_PACKET_BAD(server_buf.packet[server_buf.seq_1]) == 1 ||*/ PACKET_ACK(server_buf.packet[server_buf.seq_1]) != server_buf.seq_1){
-                    printf("ESTABLISHED_SERVER >> reACK: old packet\n");
+                  if(IS_PACKET_BAD(server_buf.packet[server_buf.seq_1]) == 1 || PACKET_ACK(server_buf.packet[server_buf.seq_1]) != server_buf.seq_1){
+                    printf("ESTABLISHED_SERVER >> discard old packet\n");
                     OUT_send_ack(server_buf.seq_1);
                   }else{
-                    printf("ESTABLISHED_SERVER >> ACK: new packet\n");
+                    printf("ESTABLISHED_SERVER >> new packet\n");
                     printf("RECV: DATA=%s;\n", server_buf.packet[server_buf.seq_1].data);
                     OUT_send_ack(PACKET_ACK(server_buf.packet[server_buf.seq_1]));
                     server_buf.seq_1 = next_seq(server_buf.seq_1);
@@ -827,6 +875,7 @@ void * STATE_MACHINE(void *arg){
                 }else{
                   if(timeout(time_wait_timer) == 1){
                     state = CLOSED;
+                    printf("CLOSING\n");
                   }
                 }
               }
@@ -887,6 +936,7 @@ void * STATE_MACHINE(void *arg){
                 printf("LAST_ACK >> IN: ACK\n");
                 input = NONE;
                 state = CLOSED;
+                printf("CLOSING\n");
               }else{
                 if(last_ack_timer.on == -1){
                   last_ack_timer.on = 3;
@@ -899,6 +949,7 @@ void * STATE_MACHINE(void *arg){
                   }
                   if(last_ack_timer.on == 0){
                     state = CLOSED;
+                    printf("CLOSING\n");
                     reset_timer(&last_ack_timer);
                   }
                 }
@@ -908,7 +959,7 @@ void * STATE_MACHINE(void *arg){
             /*=============*/
             /*STATE: EXITING*/
             case EXITING:{
-              //printf("\nSTATE = EXITING\n");
+              printf("\nSTATE = EXITING\n");
               close(server_socket);
               return NULL;
             } break;

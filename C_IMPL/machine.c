@@ -88,7 +88,7 @@
    TIMER last_ack_timer;
 
    /* SLIDING WINDOW*/
-   int window = 4;
+   int window;
 
    /* SOCKETS*/
    struct sockaddr_in server_socket_address;
@@ -107,6 +107,7 @@
    /* ADDITIONAL VARIABLES */
    int first_ack;
    int is_server;
+   int re_ack;
 
  /* =================
     FUNCTION DEFINITIONS
@@ -166,7 +167,7 @@
         printf("u_start()\n");
 
 
-
+         window = 2;
          is_server = 0;
 
          /* Intializes random number generator */
@@ -175,6 +176,7 @@
 
          /* No acks sent yet */
          first_ack = 1;
+         re_ack = 0;
 
          /* Buffer setup*/
          server_buf.seq_0 = 0; //Not used
@@ -306,6 +308,7 @@
      /* Make client recieve responses from server */
      void u_prep_sending(){
        printf("u_prep_sending()\n");
+
        /* Start thread recieving replies from server */
        if(pthread_create(&tid2, NULL, recieve_acks, 0) != 0){
          perror("Could not start thread.\n");
@@ -420,8 +423,8 @@
                /* Process standard package */
                if(ip_checksum(&pack, sizeof(PACKET)) == 0){
                  if(pack.seq == server_buf.seq_1){
-                   printf("RECIEVE PACKET: placed in server buffer\n");
-                   printf("Data: %s\n" , pack.data);
+                   //printf("RECIEVE PACKET: placed in server buffer\n");
+                   //printf("Data: %s\n" , pack.data);
                    strcpy(server_buf.packet[server_buf.seq_2].data, pack.data);
                    server_buf.packet[server_buf.seq_2].ack = pack.ack;
                    server_buf.packet[server_buf.seq_2].fin = pack.fin;
@@ -429,9 +432,12 @@
                    server_buf.packet[server_buf.seq_2].sum = pack.sum;
                    server_buf.packet[server_buf.seq_2].seq = pack.seq;
                    server_buf.seq_2 = next_seq(server_buf.seq_2);
+                 }else{
+                   //printf("ERROR: Packet out of order [SEQ: %d] (pack.seq:%d != server_buf.seq_1:%d)\n", pack.seq, pack.seq, server_buf.seq_1);
+                   re_ack = 1;
                  }
                }else{
-                 printf("BAD PACKET\n");
+                 //printf("ERROR: Invalid checksum\n");
                }
              }
          }
@@ -473,7 +479,7 @@
                input = SYN;
              }else{
                /* Handle normal seq. acks */
-               printf("RECV ACK: %d\n", ack.seq);
+               //printf("RECV ACK: %d\n", ack.seq);
                strcpy(ack_buf.packet[ack_buf.seq_2].data, ack.data);
                ack_buf.packet[ack_buf.seq_2].ack = ack.ack;
                ack_buf.packet[ack_buf.seq_2].fin = ack.fin;
@@ -607,6 +613,7 @@
 
      void OUT_send_packet(PACKET p){
        //printf("OUT: send packet; DATA = %s;\n", p.data);
+       printf("SENT: PACKET [SEQ:%d, DATA:%s]\n", p.seq, p.data);
        /* ERROR SIMULATION */
        p.sum = 0;
        p.sum = ip_checksum(&p, sizeof(PACKET));
@@ -622,17 +629,17 @@
      }
 
      void OUT_send_syn_ack(){
-       //printf("OUT: send syn ack\n");
+       printf("SENT: SYN_ACK\n");
        send_message(-1, 1, 1, 0);
      }
 
      void OUT_send_fin(){
-       //printf("OUT: send fin\n");
+       printf("SENT: FIN\n");
        send_message(-1, 0, 0, 1);
      }
 
      void OUT_send_fin_ack(){
-       //printf("OUT: send fin ack\n");
+       printf("SENT: FIN_ACK\n");
        send_message(-1, 1, 0, 1);
      }
 
@@ -739,6 +746,7 @@
                          //printf("-----ACCEPTABLE ACK-------\n");
                          //printf("ACKBUF.seq:%d == client_buf.seq_2:%d\n", ack_buf.packet[ack_buf.seq_1].seq, client_buf.seq_2);
                          //printf("RECV ACK %d;\n", client_buf.seq_2);
+                         printf("RCVD: ACK [SEQ:%d]\n", client_buf.seq_2);
                          reset_timer(&client_established[client_buf.seq_2]);
                          client_buf.seq_2 = next_seq(client_buf.seq_2);
                          //ack_buf.seq_1 = next_seq(ack_buf.seq_1);
@@ -773,7 +781,9 @@
                      while(i < client_buf.seq_1){
                        if(timeout(client_established[i]) == 1){
                          //printf("PACK_TIMEOUT: %d; ON=%d;\n", i, client_established[i].on);
+                         printf("ACK TIMEOUT [SEQ: %d]\n", client_buf.packet[i].seq);
                          client_buf.seq_1 = i;
+                         break;
                        }
                        i++;
                      }
@@ -841,15 +851,17 @@
                      OUT_send_ack(-1);
                      state = CLOSE_WAIT;
                    }else{
+                     if(re_ack == 1 && first_ack == 0){
+                       printf("SENT: RE_ACK [SEQ: %d]\n", prev_ack(server_buf.seq_1));
+                       OUT_send_ack(prev_ack(server_buf.seq_1));
+                       re_ack = 0;
+                     }
                      if(server_buf.seq_1 < server_buf.seq_2){
-                       if(server_buf.packet[server_buf.seq_1].seq != server_buf.seq_1){
-                         if(first_ack == 0){
-                           //printf("ESTABLISHED_SERVER >> discard old packet :ack %d;\n", prev_ack(server_buf.seq_1));
-                           OUT_send_ack(prev_ack(server_buf.seq_1));
-                         }
-                       }else{
+                       if(server_buf.packet[server_buf.seq_1].seq == server_buf.seq_1){
+
                          //printf("ESTABLISHED_SERVER >> new packet\n");
-                         printf("DATA:%s;\n", server_buf.packet[server_buf.seq_1].data);
+                         printf("RCVD: PACKET [SEQ: %d, DATA: %s];\n", server_buf.packet[server_buf.seq_1].seq, server_buf.packet[server_buf.seq_1].data);
+                         printf("SENT: ACK [SEQ: %d]\n", server_buf.packet[server_buf.seq_1].seq);
                          OUT_send_ack(server_buf.packet[server_buf.seq_1].seq);
                          server_buf.seq_1 = next_seq(server_buf.seq_1);
                          first_ack = 0;
@@ -1041,10 +1053,14 @@
 
       }else if(!strcmp(argv[1], "client")){
           /* START AS CLIENT */
+
+
           u_start();
           u_connect();
           u_send("Archives (static libraries) are acted upon differently than are shared objects (dynamic libraries). With dynamic libraries, all the library symbols go into the virtual address space of the output file, and all the symbols are available to all the other files in the link. In contrast, static linking only looks through the archive for the undefined symbols presently known to the loader at the time the archive is processed.", sizeof("Archives (static libraries) are acted upon differently than are shared objects (dynamic libraries). With dynamic libraries, all the library symbols go into the virtual address space of the output file, and all the symbols are available to all the other files in the link. In contrast, static linking only looks through the archive for the undefined symbols presently known to the loader at the time the archive is processed."));
           u_prep_sending();
+
+
           while(1){
             getchar();
           }

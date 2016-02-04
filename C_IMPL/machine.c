@@ -123,11 +123,11 @@
     void u_send(char* data, int length);
 
     /* INTERNAL */
-    void* STATE_MACHINE(void* arg);
     void send_packet(char data[32]);
-    void send_ack(int seq, int ack, int syn, int fin);
+    void send_message(int seq, int ack, int syn, int fin);
+    void recieve_packets();
+    void recieve_acks();
 
-    void recieve_ack();
     int client_window();
     int next_seq(int seq);
     int next_ack(int ack);
@@ -148,12 +148,17 @@
     int PACKET_ACK(PACKET t);
     int IS_PACKET_BAD(PACKET t);
 
+    /* STATE MACHINE */
+    void* STATE_MACHINE(void* arg);
+
+
 
   /* =================
      USER CONTROLS
      ================= */
 
      /* Server & Client */
+     /* --------------- */
 
      /* Start Protocol */
      void u_start(){
@@ -169,7 +174,6 @@
          server_buf.seq_0 = 0; //Not used
          server_buf.seq_1 = 0; //Next packet to ack
          server_buf.seq_2 = 0; //Next packet to place on buffer
-
 
          client_buf.seq_0 = 0; //Next place to load new packet on buffer
          client_buf.seq_1 = 0; //Next packet to send
@@ -213,6 +217,7 @@
      }
 
      /* Server */
+     /* ------ */
 
      /* Listen to connections */
      void u_listen(){
@@ -222,6 +227,97 @@
      /* Start recieving packages from network onto buffer */
      void u_start_recieving()
      {
+       /* Start thread recieving replies from server */
+       if(pthread_create(&tid2, NULL, recieve_packet, NULL) != 0){
+         perror("Could not start thread.\n");
+         exit(EXIT_FAILURE);
+       }
+     }
+
+     /* Client */
+     /* ------ */
+
+     /* Connect to server */
+     void u_connect(){
+         input = CONNECT;
+     }
+
+     /* Make client recieve responses from server */
+     void u_prep_sending(){
+       /* Start thread recieving replies from server */
+       if(pthread_create(&tid2, NULL, recieve_ack, NULL) != 0){
+         perror("Could not start thread.\n");
+         exit(EXIT_FAILURE);
+       }
+     }
+
+     /* Send stream of data to server */
+     void u_send(char* data, int length){
+       float p = (float) length / PACKET_DATA_SIZE;
+       int packets = (int) ceil(p);
+       int i = 0;
+       char p_data[PACKET_DATA_SIZE];
+
+       /* Divide data into packages and send */
+       while(i < packets){
+         memset(&p_data, 0, sizeof(PACKET_DATA_SIZE));
+         if(i == packets-1){
+           memcpy(&p_data, data+(i*PACKET_DATA_SIZE), length-(PACKET_DATA_SIZE*(packets-1)));
+         }else{
+           memcpy(&p_data, data+(i*PACKET_DATA_SIZE), PACKET_DATA_SIZE);
+         }
+         send_packet(p_data);
+         i++;
+       }
+     }
+
+
+     /* INTERNAL */
+     /* ======== */
+
+     /* SEND PACKET */
+     /* Place package onto buffer */
+     void send_packet(char data[32]){
+       strcpy(client_buf.packet[client_buf.seq_0].data, data);
+       client_buf.packet[client_buf.seq_0].seq = client_buf.seq_0;
+       client_buf.packet[client_buf.seq_0].sum = ip_checksum(&client_buf.packet[client_buf.seq_0], sizeof(PACKET));
+       client_buf.seq_0 = next_seq(client_buf.seq_0);
+     }
+
+     /* SEND MESSAGE */
+     /* Messages like ACK, SYN, FIN with or without sequence numbers */
+     void send_message(int seq, int ack, int syn, int fin){
+       PACKET ack_packet;
+       ack_packet.ack = ack;
+       ack_packet.seq = seq;
+       ack_packet.syn = syn;
+       ack_packet.fin = fin;
+
+       unsigned int slen;
+       /* SERVER scenario */
+       if(is_server == 1){
+         slen = sizeof(server_socket_client_address);
+         if((sendto(server_socket, &ack_packet, sizeof(PACKET), 0, (struct sockaddr *) &server_socket_client_address, slen))==-1)
+           {
+               perror("Sendto.\n");
+               exit(EXIT_FAILURE);
+           }
+       }
+       /* CLIENT scenario */
+       else if(is_server == 0)
+       {
+           slen = sizeof(server_socket_address);
+           if((sendto(server_socket, &ack_packet, sizeof(PACKET), 0, (struct sockaddr *) &server_socket_address, slen))==-1)
+           {
+               perror("Sendto.\n");
+               exit(EXIT_FAILURE);
+           }
+       }
+     }
+
+     /* RECIEVE PACKETS ONTO BUFFER */
+     /* Process special flags and check for errors */
+     void recieve_packets(){
          PACKET pack;
          while(FOREVER)
          {
@@ -272,44 +368,51 @@
          }
      }
 
-     /* Client */
+     /* RECIEVE ACKS */
+     void recieve_acks()
+     {
+         PACKET ack;
+         while(FOREVER)
+         {
+             /* Kill thread if machine stops */
+             if(state == TIME_WAIT){
+               return;
+             }
 
-     /* Connect to server */
-     void u_connect(){
-         input = CONNECT;
-     }
+             fflush(stdout);
 
-     /* Make client recieve responses from server */
-     void u_prep_sending(){
-       /* Start thread recieving replies from server */
-       if(pthread_create(&tid2, NULL, recieve_ack, NULL) != 0){
-         perror("Could not start thread.\n");
-         exit(EXIT_FAILURE);
-       }
-     }
+             unsigned int slen = sizeof(server_socket_address);
+             //try to receive some data, this is a blocking call
+             if ((recv_len = recvfrom(server_socket, &ack, sizeof(PACKET), 0, (struct sockaddr *) &server_socket_address, &slen)) == -1)
+             {
+                 perror("Recvfrom.\n");
+                 exit(EXIT_FAILURE);
+             }
 
-     /* Send stream of data to server */
-     void u_send(char* data, int length){
-       float p = (float) length / PACKET_DATA_SIZE;
-       int packets = (int) ceil(p);
-       int i = 0;
-       char p_data[PACKET_DATA_SIZE];
-
-       /* Divide data into packages and send */
-       while(i < packets){
-         memset(&p_data, 0, sizeof(PACKET_DATA_SIZE));
-         if(i == packets-1){
-           memcpy(&p_data, data+(i*PACKET_DATA_SIZE), length-(PACKET_DATA_SIZE*(packets-1)));
-         }else{
-           memcpy(&p_data, data+(i*PACKET_DATA_SIZE), PACKET_DATA_SIZE);
+             /* Handle special flags */
+             if(ack.syn == 1 && ack.ack == 1){
+               input = SYN_ACK;
+             }else if(ack.fin == 1 && ack.ack == 1){
+               input = FIN_ACK;
+             }else if(ack.fin == 1){
+               input = FIN;
+             }else if(ack.ack == 1 && ack.seq == -1){
+               input = ACK;
+             }else if(ack.syn == 1){
+               input = SYN;
+             }else{
+               /* Handle normal seq. acks */
+               printf("RECV ACK: %d\n", ack.seq);
+               strcpy(ack_buf.packet[ack_buf.seq_2].data, ack.data);
+               ack_buf.packet[ack_buf.seq_2].ack = ack.ack;
+               ack_buf.packet[ack_buf.seq_2].fin = ack.fin;
+               ack_buf.packet[ack_buf.seq_2].syn = ack.syn;
+               ack_buf.packet[ack_buf.seq_2].sum = ack.sum;
+               ack_buf.packet[ack_buf.seq_2].seq = ack.seq;
+               ack_buf.seq_2 = next_seq(ack_buf.seq_2);
+             }
          }
-         send_packet(p_data);
-         i++;
-       }
      }
-
-
-
 
 
 
@@ -440,121 +543,22 @@ clock_t clock_time(int milli_seconds){
 
 
 
-/* SEND PACKET */
-void send_packet(char data[32]){
-
-  //printf("SEND PACKET: placed in client buffer\n");
-  strcpy(client_buf.packet[client_buf.seq_0].data, data);
-  client_buf.packet[client_buf.seq_0].seq = client_buf.seq_0;
-  client_buf.packet[client_buf.seq_0].sum = ip_checksum(&client_buf.packet[client_buf.seq_0], sizeof(PACKET));
-  printf("CHECKSUM:%04X\n", client_buf.packet[client_buf.seq_0].sum);
-  client_buf.seq_0 = next_seq(client_buf.seq_0);
-}
-
-/* SEND ACK */
-void send_ack(int seq, int ack, int syn, int fin){
-  PACKET ack_packet;
-
-  ack_packet.ack = ack;
-  ack_packet.seq = seq;
-  ack_packet.syn = syn;
-  ack_packet.fin = fin;
-  unsigned int slen;
-  //SEND over network
-
-    //printf("Socket: %d;\n", server_socket);
-    if(is_server == 1){
-      slen = sizeof(server_socket_client_address);
-      if((sendto(server_socket, &ack_packet, sizeof(PACKET), 0, (struct sockaddr *) &server_socket_client_address, slen))==-1)
-        {
-            //die("sendto()");
-            perror("Sendto.\n");
-            exit(EXIT_FAILURE);
-        }
-    }
-    else if(is_server == 0)
-    {
-        slen = sizeof(server_socket_address);
-        if((sendto(server_socket, &ack_packet, sizeof(PACKET), 0, (struct sockaddr *) &server_socket_address, slen))==-1)
-        {
-            //die("sendto()");
-            perror("Sendto.\n");
-            exit(EXIT_FAILURE);
-        }
-    }
-
-    //printf("SEND ACK: seq: %d; ack: %d; syn:%d; fin:%d;\n", ack_packet.seq, ack_packet.ack, ack_packet.syn, ack_packet.fin);
-}
-
-
-
-/* RECIEVE ACK */
-void recieve_ack()
-{
-    PACKET ack;
-    int i = 4;
-    while(1)
-    {
-
-        //printf("Waiting for ack...");
-        fflush(stdout);
-
-        unsigned int slen = sizeof(server_socket_address);
-        //try to receive some data, this is a blocking call
-        if ((recv_len = recvfrom(server_socket, &ack, sizeof(PACKET), 0, (struct sockaddr *) &server_socket_address, &slen)) == -1)
-        {
-            //die("recvfrom()");
-            perror("Recvfrom.\n");
-            exit(EXIT_FAILURE);
-        }
-
-
-        if(ack.syn == 1 && ack.ack == 1){
-          input = SYN_ACK;
-        }else if(ack.fin == 1 && ack.ack == 1){
-          input = FIN_ACK;
-        }else if(ack.fin == 1){
-          input = FIN;
-        }else if(ack.ack == 1 && ack.seq == -1){
-          input = ACK;
-        }else if(ack.syn == 1){
-          input = SYN;
-        }else{
-          i--;
-          //printf("RECIEVE ACK: placed in server buffer\n");
-          printf("RECV ACK: %d\n", ack.seq);
-          strcpy(ack_buf.packet[ack_buf.seq_2].data, ack.data);
-          ack_buf.packet[ack_buf.seq_2].ack = ack.ack;
-          ack_buf.packet[ack_buf.seq_2].fin = ack.fin;
-          ack_buf.packet[ack_buf.seq_2].syn = ack.syn;
-          ack_buf.packet[ack_buf.seq_2].sum = ack.sum;
-          ack_buf.packet[ack_buf.seq_2].seq = ack.seq;
-          ack_buf.seq_2 = next_seq(ack_buf.seq_2);
-          //print details of the client/peer and the data received
-          //printf("Received ack from %s:%d\n", inet_ntoa(server_socket_address.sin_addr), ntohs(server_socket_address.sin_port));
-          //printf("ACK_SEQ: %d:%d, %d\n", ack.seq, ack.ack, ack_buf.packet[ack_buf.seq_2].seq);
-        }
 
 
 
 
 
 
-
-    }
-
-
-}
 
 /* OUT FUNCTIONS */
 void OUT_send_ack(int seq){
   printf("OUT: send ack %d\n", seq);
-  send_ack(seq, 1, 0, 0);
+  send_message(seq, 1, 0, 0);
 }
 
 void OUT_send_syn(){
   printf("OUT: send syn\n");
-  send_ack(-1, 0, 1, 0);
+  send_message(-1, 0, 1, 0);
 }
 
 void OUT_send_packet(PACKET p){
@@ -575,17 +579,17 @@ void OUT_send_packet(PACKET p){
 
 void OUT_send_syn_ack(){
   printf("OUT: send syn ack\n");
-  send_ack(-1, 1, 1, 0);
+  send_message(-1, 1, 1, 0);
 }
 
 void OUT_send_fin(){
   printf("OUT: send fin\n");
-  send_ack(-1, 0, 0, 1);
+  send_message(-1, 0, 0, 1);
 }
 
 void OUT_send_fin_ack(){
   printf("OUT: send fin ack\n");
-  send_ack(-1, 1, 0, 1);
+  send_message(-1, 1, 0, 1);
 }
 
 int PACKET_ACK(PACKET t){

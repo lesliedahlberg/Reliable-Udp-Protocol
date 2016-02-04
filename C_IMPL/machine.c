@@ -80,7 +80,7 @@ INPUT input;
 
 /* SOCKETS*/
 //Client
-struct sockaddr_in server_socket_address;
+struct sockaddr_in server_socket_address, client_address;
 int server_socket, server_socket_length=sizeof(server_socket_address);
 //Server
 struct sockaddr_in server_socket_self_address, server_socket_client_address;
@@ -159,6 +159,8 @@ void send_ack(int seq){
   ack_packet.seq = seq;
   //SEND over network
   printf("SEND ACK: seq: %d;\n", ack_packet.seq);
+
+
 }
 
 /* RECIEVE PACKET */
@@ -193,6 +195,43 @@ void recieve_packet()
         //print details of the client/peer and the data received
         printf("Received packet from %s:%d\n", inet_ntoa(server_socket_client_address.sin_addr), ntohs(server_socket_client_address.sin_port));
         printf("Data: %s\n" , pack.data);
+    }
+
+    close(server_socket);
+}
+
+/* RECIEVE ACK */
+void recieve_ack()
+{
+    PACKET ack;
+    int i = 2;
+    while(i > 0)
+    {
+        i--;
+        printf("Waiting for ack...");
+        fflush(stdout);
+
+        unsigned int slen = sizeof(server_socket_address);
+        //try to receive some data, this is a blocking call
+        if ((recv_len = recvfrom(server_socket, &ack, sizeof(PACKET), 0, (struct sockaddr *) &server_socket_address, &slen)) == -1)
+        {
+            //die("recvfrom()");
+            perror("Recvfrom.\n");
+            exit(EXIT_FAILURE);
+        }
+
+        printf("RECIEVE PACKET: placed in server buffer\n");
+        strcpy(ack_buf.packet[ack_buf.seq_2].data, ack.data);
+        ack_buf.packet[ack_buf.seq_2].ack = ack.ack;
+        ack_buf.packet[ack_buf.seq_2].fin = ack.fin;
+        ack_buf.packet[ack_buf.seq_2].syn = ack.syn;
+        ack_buf.packet[ack_buf.seq_2].sum = ack.sum;
+        ack_buf.packet[ack_buf.seq_2].seq = ack.seq;
+        ack_buf.seq_2 = next_seq(ack_buf.seq_2);
+
+        //print details of the client/peer and the data received
+        printf("Received packet from %s:%d\n", inet_ntoa(server_socket_address.sin_addr), ntohs(server_socket_address.sin_port));
+        printf("Data: %s\n" , ack.data);
     }
 
     close(server_socket);
@@ -378,6 +417,20 @@ int main(int argc, char *argv[]){
         memset((char *) &server_socket_address, 0, sizeof(server_socket_address));
         server_socket_address.sin_family = AF_INET;
         server_socket_address.sin_port = htons(SERVER_PORT);
+
+        // zero out the structure
+        memset((char *) &client_address, 0, sizeof(client_address));
+        client_address.sin_family = AF_INET;
+        client_address.sin_port = htons(SERVER_PORT+1);
+        client_address.sin_addr.s_addr = htonl(INADDR_ANY);
+        //bind socket to port
+        if( bind(server_socket , (struct sockaddr*)&client_address, sizeof(client_address) ) == -1)
+        {
+            //die("bind");
+            perror("Bind.\n");
+            exit(EXIT_FAILURE);
+        }
+
         if (inet_aton(SERVER_IP , &server_socket_address.sin_addr) == 0)
             {
 

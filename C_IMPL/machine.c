@@ -21,6 +21,7 @@
 #define SERVER_IP "127.0.0.111"
 #define SERVER_PORT 8888
 #define PACKET_DATA_SIZE 32
+#define RESEND_PACKS 10
 
 /* =================
    TYPES
@@ -315,6 +316,7 @@
      /* Send stream of data to server */
      void u_send(char* data, int length){
        printf("u_send()\n");
+       printf("=========\nSENDING: %s;=========\n",data);
        float p = (float) length / PACKET_DATA_SIZE;
        int packets = (int) ceil(p);
        int i = 0;
@@ -344,7 +346,7 @@
        client_buf.packet[client_buf.seq_0].seq = client_buf.seq_0;
        client_buf.packet[client_buf.seq_0].sum = ip_checksum(&client_buf.packet[client_buf.seq_0], sizeof(PACKET));
 
-       printf(">>BUF:%s;\n", client_buf.packet[client_buf.seq_0].data);
+       printf("WINDOW BUFFER >> %s\n", client_buf.packet[client_buf.seq_0].data);
 
        client_buf.seq_0 = next_seq(client_buf.seq_0);
      }
@@ -387,7 +389,7 @@
          while(FOREVER)
          {
 
-             
+
              /* Kill thread if machine stops */
              if(state == TIME_WAIT){
                return NULL;
@@ -442,7 +444,7 @@
          PACKET ack;
          while(FOREVER)
          {
-             printf("+");
+
              /* Kill thread if machine stops */
              if(state == TIME_WAIT){
                return NULL;
@@ -594,17 +596,17 @@
      /* ====================== */
 
      void OUT_send_ack(int seq){
-       printf("OUT: send ack %d\n", seq);
+       //printf("OUT: send ack %d\n", seq);
        send_message(seq, 1, 0, 0);
      }
 
      void OUT_send_syn(){
-       printf("OUT: send syn\n");
+       //printf("OUT: send syn\n");
        send_message(-1, 0, 1, 0);
      }
 
      void OUT_send_packet(PACKET p){
-       printf("OUT: send packet; DATA = %s;\n", p.data);
+       //printf("OUT: send packet; DATA = %s;\n", p.data);
        /* ERROR SIMULATION */
        p.sum = 0;
        p.sum = ip_checksum(&p, sizeof(PACKET));
@@ -620,17 +622,17 @@
      }
 
      void OUT_send_syn_ack(){
-       printf("OUT: send syn ack\n");
+       //printf("OUT: send syn ack\n");
        send_message(-1, 1, 1, 0);
      }
 
      void OUT_send_fin(){
-       printf("OUT: send fin\n");
+       //printf("OUT: send fin\n");
        send_message(-1, 0, 0, 1);
      }
 
      void OUT_send_fin_ack(){
-       printf("OUT: send fin ack\n");
+       //printf("OUT: send fin ack\n");
        send_message(-1, 1, 0, 1);
      }
 
@@ -650,11 +652,11 @@
                      //printf("\nSTATE = CLOSED\n");
                      /*INPUT: CONNECT*/
                      if(input == EXIT){
-                       printf("CLOSED >> IN: EXIT\n");
+                       //printf("EXIT()\n");
                        input = NONE;
                        state = EXITING;
                      }else if(input == CONNECT){
-                       printf("CLOSED >> IN: CONNECT\n");
+                       //printf("CONNECT()\n");
                          input = NONE;
                          //Send SYN
                          OUT_send_syn();
@@ -671,7 +673,7 @@
                  case SYN_SENT:{
                      //printf("\nSTATE = SYN_SENT\n");
                      if(input == SYN_ACK){
-                       printf("SYN_SENT >> IN: SYN_ACK\n");
+                       printf("SYN_ACK\n");
                          input = NONE;
                          //Send ACK
                          OUT_send_ack(-1);
@@ -702,7 +704,7 @@
                  case PRE_ESTABLISHED:{
                      //printf("\nSTATE = PRE_ESTABLISHED\n");
                      if(input == SYN_ACK){
-                       printf("PRE_ESTABLISHED >> IN: SYN_ACK\n");
+                       printf("SYN_ACK\n");
                          input = NONE;
                          OUT_send_ack(-1);
                      }else{
@@ -725,7 +727,7 @@
 
                    //printf("\nSTATE = ESTABLISHED_CLIENT\n");
                    if(input == CLOSE){
-                     printf("ESTABLISHED_CLIENT >> IN: CLOSE\n");
+                     //printf("CLOSE\n");
                      input = NONE;
                      state = FIN_WAIT_1;
                      OUT_send_fin();
@@ -751,12 +753,12 @@
                        //printf("WINDOW: %d < %d\n", client_window(), WINDOW);
                        OUT_send_packet(client_buf.packet[client_buf.seq_1]);
                        if(client_established[client_buf.seq_1].on == -1){
-                         client_established[client_buf.seq_1].on = 3;
+                         client_established[client_buf.seq_1].on = RESEND_PACKS;
                        }else{
                          decrease_timer(&client_established[client_buf.seq_1]);
                          if(client_established[client_buf.seq_1].on == 0){
                            input = CLOSE;
-                           printf("PACKET NOT ACKED -> TIMEOUR -> CLOSE()\n");
+                           printf("Could not reach client! Closing...\n");
                          }
                        }
                        client_established[client_buf.seq_1].start = clock();
@@ -785,12 +787,12 @@
                  case LISTENING:{
                      //printf("\nSTATE = LISTENING\n");
                      if(input == SYN){
-                       printf("LISTENING >> IN: SYN\n");
+                       printf("SYN\n");
                          input = NONE;
                          OUT_send_syn_ack();
                          state = SYN_RECIEVED;
                      }else if(input == CLOSE){
-                       printf("LISTENING >> IN: CLOSE\n");
+                       //printf("LISTENING >> IN: CLOSE\n");
                          input = NONE;
                          state = CLOSE;
                      }
@@ -801,12 +803,12 @@
                  case SYN_RECIEVED:{
                      //printf("\nSTATE = SYN_RECIEVED\n");
                      if(input == ACK){
-                       printf("SYN_RECIEVED >> IN: ACK\n");
+                       printf("ACK\n");
                        input = NONE;
                        state = ESTABLISHED_SERVER;
                        reset_timer(&syn_recieved_timer);
                      }else if(input == RESET){
-                       printf("SYN_RECIEVED >> IN: RESET\n");
+                       printf("RESET\n");
                        input = NONE;
                        state = LISTENING;
                        reset_timer(&syn_recieved_timer);
@@ -834,7 +836,7 @@
 
                      //printf("\nSTATE = ESTABLISHED_SERVER\n");
                    if(input == FIN){
-                     printf("ESTABLISHED_SERVER >> IN: FIN\n");
+                     printf("FIN\n");
                      input = NONE;
                      OUT_send_ack(-1);
                      state = CLOSE_WAIT;
@@ -842,12 +844,12 @@
                      if(server_buf.seq_1 < server_buf.seq_2){
                        if(server_buf.packet[server_buf.seq_1].seq != server_buf.seq_1){
                          if(first_ack == 0){
-                           printf("ESTABLISHED_SERVER >> discard old packet :ack %d;\n", prev_ack(server_buf.seq_1));
+                           //printf("ESTABLISHED_SERVER >> discard old packet :ack %d;\n", prev_ack(server_buf.seq_1));
                            OUT_send_ack(prev_ack(server_buf.seq_1));
                          }
                        }else{
-                         printf("ESTABLISHED_SERVER >> new packet\n");
-                         printf("RECV: DATA=%s;\n", server_buf.packet[server_buf.seq_1].data);
+                         //printf("ESTABLISHED_SERVER >> new packet\n");
+                         printf("DATA:%s;\n", server_buf.packet[server_buf.seq_1].data);
                          OUT_send_ack(server_buf.packet[server_buf.seq_1].seq);
                          server_buf.seq_1 = next_seq(server_buf.seq_1);
                          first_ack = 0;
@@ -861,16 +863,16 @@
                  case FIN_WAIT_1:{
                      //printf("\nSTATE = FIN_WAIT_1\n");
                    if(input == ACK){
-                     printf("FIN_WAIT_1 >> IN: ACK\n");
+                     printf("ACK\n");
                      input = NONE;
                      state = FIN_WAIT_2;
                    }else if(input == FIN_ACK){
-                     printf("FIN_WAIT_1 >> IN: FIN_ACK\n");
+                     printf("FIN_ACK\n");
                      input = NONE;
                      OUT_send_ack(-1);
                      state = TIME_WAIT;
                    }else if(input == FIN){
-                     printf("FIN_WAIT_1 >> IN: FIN\n");
+                     printf("FIN\n");
                      input == NONE;
                      OUT_send_ack(-1);
                      state = CLOSING;
@@ -897,7 +899,7 @@
                  case FIN_WAIT_2:{
                     // printf("\nSTATE = FIN_WAIT_2\n");
                    if(input == FIN){
-                     printf("FIN_WAIT_2 >> IN: FIN\n");
+                     printf("FIN\n");
                      input = NONE;
                      OUT_send_ack(-1);
                      state = TIME_WAIT;
@@ -909,11 +911,11 @@
                  case TIME_WAIT:{
                      //printf("\nSTATE = TIME_WAIT\n");
                    if(input == FIN){
-                     printf("TIME_WAIT >> IN: FIN\n");
+                     printf("FIN\n");
                      input = NONE;
                      OUT_send_ack(-1);
                    }else if(input == FIN_ACK){
-                     printf("TIME_WAIT >> IN: FIN_ACK\n");
+                     printf("FIN_ACK\n");
                      input = NONE;
                      OUT_send_ack(-1);
                    }else{
@@ -935,7 +937,7 @@
                  case CLOSING:{
                     // printf("\nSTATE = CLOSING\n");
                    if(input == ACK){
-                     printf("CLOSING >> IN: ACK\n");
+                     printf("ACK\n");
                      input = NONE;
                      state = TIME_WAIT;
                    }else{
@@ -961,7 +963,7 @@
                  case CLOSE_WAIT:{
                      //printf("\nSTATE = CLOSE_WAIT\n");
                    if(input == FIN){
-                     printf("CLOSE_WAIT >> IN: FIN\n");
+                     printf("FIN\n");
                      input = NONE;
                      OUT_send_ack(-1);
                    }else if(close_wait_timer.on == -1){
@@ -982,7 +984,7 @@
                  case LAST_ACK:{
                    //printf("\nSTATE = LAST_ACK\n");
                    if(input == ACK){
-                     printf("LAST_ACK >> IN: ACK\n");
+                     printf("IN: ACK\n");
                      input = NONE;
                      state = CLOSED;
                      printf("CLOSING\n");

@@ -11,6 +11,7 @@
 #include <pthread.h>
 #include <string.h>
 #include <stdint.h>
+#include <math.h>
 
 #define FOREVER 1
 #define MODULO 1024
@@ -19,6 +20,7 @@
 
 #define SERVER_IP "127.0.0.111"
 #define SERVER_PORT 8888
+#define PACKET_DATA_SIZE 32
 
 
 
@@ -196,6 +198,24 @@ void decrease_timer(TIMER *t){
 clock_t clock_time(int milli_seconds){
     //return (milli_seconds/1000)*CLOCKS_PER_SEC;
     return 1000;
+}
+
+void send_string(char* data, int length){
+  //int packets = (int) ceil(((double) length) / ((double) PACKET_DATA_SIZE)) ;
+  float p = (float) length / PACKET_DATA_SIZE;
+  int packets = (int) ceil(p);
+  int i = 0;
+  char p_data[PACKET_DATA_SIZE];
+  while(i < packets){
+    memset(&p_data, 0, sizeof(PACKET_DATA_SIZE));
+    if(i == packets-1){
+      memcpy(&p_data, data+(i*PACKET_DATA_SIZE), length-(PACKET_DATA_SIZE*(packets-1)));
+    }else{
+      memcpy(&p_data, data+(i*PACKET_DATA_SIZE), PACKET_DATA_SIZE);
+    }
+    send_packet(p_data);
+    i++;
+  }
 }
 
 /* SEND PACKET */
@@ -610,10 +630,12 @@ int main(int argc, char *argv[]){
         //input = SYN_ACK;
         //sleep(1);
 
-        send_packet("MSG1");
-        send_packet("MSG2");
-        send_packet("MSG3");
-        send_packet("MSG4");
+        //send_packet("MSG1");
+        //send_packet("MSG2");
+        //send_packet("MSG3");
+        //send_packet("MSG4");
+        send_string("Archives (static libraries) are acted upon differently than are shared objects (dynamic libraries). With dynamic libraries, all the library symbols go into the virtual address space of the output file, and all the symbols are available to all the other files in the link. In contrast, static linking only looks through the archive for the undefined symbols presently known to the loader at the time the archive is processed.", sizeof("Archives (static libraries) are acted upon differently than are shared objects (dynamic libraries). With dynamic libraries, all the library symbols go into the virtual address space of the output file, and all the symbols are available to all the other files in the link. In contrast, static linking only looks through the archive for the undefined symbols presently known to the loader at the time the archive is processed."));
+
 
         /* Start thread recieving replies from server */
         if(pthread_create(&tid2, NULL, recieve_ack, NULL) != 0){

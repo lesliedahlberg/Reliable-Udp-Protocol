@@ -15,6 +15,9 @@
 #define WINDOW_MODULO 1024
 #define WINDOW 2
 
+#define SERVER_IP "127.0.0.1"
+#define SERVER_PORT 8888
+
 /* THREADs */
 pthread_t tid;
 
@@ -60,6 +63,13 @@ BUFFER server_buf;
 BUFFER client_buf;
 BUFFER ack_buf;
 
+/* SOCKETS*/
+//Client
+struct sockaddr_in server_socket_address;
+int server_socket, server_socket_length=sizeof(server_socket_address);
+//Server
+struct sockaddr_in server_socket_self_address, server_socket_client_address;
+int server_socket, i, recv_len;
 
 
 /* WINDOW SIZE */
@@ -137,12 +147,35 @@ void send_ack(int seq){
 }
 
 /* RECIEVE PACKET */
-void recieve_packet(char data[32]){
-  static int i = 0;
-  printf("RECIEVE PACKET: placed in server buffer\n");
-  strcpy(server_buf.packet[server_buf.seq_2].data, data);
-  server_buf.packet[server_buf.seq_2].seq = i++;
-  server_buf.seq_2 = next_seq(server_buf.seq_2);
+void recieve_packet()
+{
+    PACKET pack;
+    while(1)
+    {
+        printf("Waiting for data...");
+        fflush(stdout);
+
+        //try to receive some data, this is a blocking call
+        if ((recv_len = recvfrom(server_socket, pack, sizeof(PACKET), 0, (struct sockaddr *) &server_socket_client_address, sizeof(server_socket_client_address))) == -1)
+        {
+            die("recvfrom()");
+        }
+
+        printf("RECIEVE PACKET: placed in server buffer\n");
+        strcpy(server_buf.packet[server_buf.seq_2].data, pack.data);
+        server_buf.packet[server_buf.seq_2].ack = pack.ack;
+        server_buf.packet[server_buf.seq_2].fin = pack.fin;
+        server_buf.packet[server_buf.seq_2].syn = pack.syn;
+        server_buf.packet[server_buf.seq_2].sum = pack.sum;
+        server_buf.packet[server_buf.seq_2].seq = pack.seq;
+        server_buf.seq_2 = next_seq(server_buf.seq_2);
+
+        print details of the client/peer and the data received
+        printf("Received packet from %s:%d\n", inet_ntoa(server_socket_client_address.sin_addr), ntohs(server_socket_client_address.sin_port));
+        printf("Data: %s\n" , pack.data);
+    }
+
+    close(server_socket);
 }
 
 /* OUT FUNCTIONS */
@@ -157,6 +190,10 @@ void OUT_send_syn(){
 
 void OUT_send_packet(PACKET p){
   printf("OUT: send packet; DATA = %s;\n", p.data);
+  if(sendto(server_socket, p, sizeof(PACKET), 0, (struct sockaddr *) &server_socket_address, server_socket_length)==-1)
+    {
+        die("sendto()");
+    }
 }
 
 void OUT_send_syn_ack(){
@@ -273,6 +310,25 @@ int main(int argc, char *argv[]){
     /* START AS SERVER */
     if(!strcmp(argv[1], "server")){
         printf("<<<<<<SERVER>>>>>>:\n");
+
+        if ((server_socket=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1)
+        {
+            die("socket");
+        }
+        // zero out the structure
+        memset((char *) &server_socket_self_address, 0, sizeof(server_socket_self_address));
+         server_socket
+        server_socket_self_address.sin_family = AF_INET;
+        server_socket_self_address.sin_port = htons(PORT);
+        server_socket_self_address.sin_addr.s_addr = htonl(INADDR_ANY);
+
+        //bind socket to port
+        if( bind(server_socket , (struct sockaddr*)&server_socket_self_address, sizeof(server_socket_self_address) ) == -1)
+        {
+            die("bind");
+        }
+
+
         start();
         sleep(1);
         input = LISTEN;
@@ -301,6 +357,20 @@ int main(int argc, char *argv[]){
     }else if(!strcmp(argv[1], "client")){
         /* START AS CLIENT */
         printf("<<<<<<CLIENT>>>>>>:\n");
+        //Connect client
+        if ((server_socket=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1)
+            {
+                die("socket");
+            }
+        memset((char *) &server_socket_address, 0, sizeof(server_socket_address));
+        server_socket_address.sin_family = AF_INET;
+        server_socket_address.sin_port = htons(SERVER_PORT);
+        if (inet_aton(SERVER_IP , &server_socket_address.sin_addr) == 0)
+            {
+                fprintf(stderr, "inet_aton() failed\n");
+                exit(1);
+            }
+        //Run machine
         start();
         sleep(1);
 

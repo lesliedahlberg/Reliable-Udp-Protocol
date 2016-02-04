@@ -9,13 +9,14 @@
 #include <netinet/in.h>
 #include <netdb.h>
 #include <pthread.h>
+#include <string.h>
 
 #define FOREVER 1
 #define MODULO 1024
 #define WINDOW_MODULO 1024
 #define WINDOW 2
 
-#define SERVER_IP "127.0.0.1"
+#define SERVER_IP "127.0.0.111"
 #define SERVER_PORT 8888
 
 /* THREADs */
@@ -48,7 +49,7 @@ typedef struct {
 } TIMER;
 
 /* FUNCTIONS */
-void STATE_MACHINE();
+void* STATE_MACHINE(void* arg);
 int client_window();
 int next_seq(int seq);
 int next_ack(int ack);
@@ -155,8 +156,9 @@ void recieve_packet()
         printf("Waiting for data...");
         fflush(stdout);
 
+        unsigned int slen = sizeof(server_socket_client_address);
         //try to receive some data, this is a blocking call
-        if ((recv_len = recvfrom(server_socket, &pack, sizeof(PACKET), 0, (struct sockaddr *) &server_socket_client_address, sizeof(server_socket_client_address))) == -1)
+        if ((recv_len = recvfrom(server_socket, &pack, sizeof(PACKET), 0, (struct sockaddr *) &server_socket_client_address, &slen)) == -1)
         {
             //die("recvfrom()");
             perror("Recvfrom.\n");
@@ -227,12 +229,12 @@ int window_size(){
 
 /* INPUTs */
 typedef enum {
-  EXIT,NONE,CONNECT,CLOSE,SYN_ACK,SYN,ACK,FIN,FIN_ACK,TIMEOUT,RESET,GOOD_PACKET,BAD_PACKET
+  EXIT,NONE,CONNECT,CLOSE,SYN_ACK,SYN,ACK,FIN,FIN_ACK,TIMEOUT,RESET,GOOD_PACKET,BAD_PACKET,LISTEN
 } INPUT;
 
 /* STATES */
 typedef enum {
-  EXITING,CLOSED,SYN_SENT,PRE_ESTABLISHED,ESTABLISHED_CLIENT,LISTEN,SYN_RECIEVED,ESTABLISHED_SERVER,FIN_WAIT_1,FIN_WAIT_2,TIME_WAIT,CLOSING,CLOSE_WAIT,LAST_ACK
+  EXITING,CLOSED,SYN_SENT,PRE_ESTABLISHED,ESTABLISHED_CLIENT,LISTENING,SYN_RECIEVED,ESTABLISHED_SERVER,FIN_WAIT_1,FIN_WAIT_2,TIME_WAIT,CLOSING,CLOSE_WAIT,LAST_ACK
 } STATE;
 
 /* STATE MACHINE */
@@ -289,7 +291,7 @@ void start(){
     reset_timer(&last_ack_timer);
 
     /* Start thread recieving replies from server */
-    if(pthread_create(&tid, NULL, STATE_MACHINE, NULL) != 0){
+    if(pthread_create(&tid, NULL, STATE_MACHINE, 0) != 0){
       perror("Could not start thread.\n");
       exit(EXIT_FAILURE);
     }
@@ -346,10 +348,7 @@ int main(int argc, char *argv[]){
         input = ACK;
         sleep(1);
 
-        recieve_packet("MSG1");
-        recieve_packet("MSG2");
-        recieve_packet("MSG3");
-        recieve_packet("MSG4");
+        recieve_packet();
 
 
         /*input = FIN;
@@ -377,6 +376,7 @@ int main(int argc, char *argv[]){
         server_socket_address.sin_port = htons(SERVER_PORT);
         if (inet_aton(SERVER_IP , &server_socket_address.sin_addr) == 0)
             {
+
                 fprintf(stderr, "inet_aton() failed\n");
                 exit(1);
             }
@@ -418,11 +418,11 @@ int main(int argc, char *argv[]){
       return 0;
   }
 
-
+  return 1;
 }
 
 /* STATE MACHINE IMPLEMENTATION */
-void STATE_MACHINE(){
+void * STATE_MACHINE(void *arg){
       /* RUN */
       while(FOREVER) {
         /* STATE CHECK */
@@ -446,7 +446,7 @@ void STATE_MACHINE(){
                     state = SYN_SENT;
                 }else if(input == LISTEN){
                     input = NONE;
-                    state = LISTEN;
+                    state = LISTENING;
                 }
             } break;
 
@@ -550,9 +550,9 @@ void STATE_MACHINE(){
             } break;
 
             /*=============*/
-            /*STATE: LISTEN*/
-            case LISTEN:{
-                printf("\nSTATE = LISTEN\n");
+            /*STATE: LISTENING*/
+            case LISTENING:{
+                printf("\nSTATE = LISTENING\n");
                 if(input == SYN){
                   printf("IN: SYN\n");
                     input = NONE;
@@ -577,7 +577,7 @@ void STATE_MACHINE(){
                 }else if(input == RESET){
                   printf("IN: RESET\n");
                   input = NONE;
-                  state = LISTEN;
+                  state = LISTENING;
                   reset_timer(&syn_recieved_timer);
                 }else{
                   if(syn_recieved_timer.on == -1){
@@ -771,10 +771,11 @@ void STATE_MACHINE(){
             /*STATE: EXITING*/
             case EXITING:{
               printf("\nSTATE = EXITING\n");
-              return;
+              return NULL;
             } break;
 
         }
         usleep(1000*100);
       }
+      
 }

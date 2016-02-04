@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -w
+CFLAGS = -Wall
 PROGRAMS = machine
 
 ALL: ${PROGRAMS}

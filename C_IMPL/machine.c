@@ -193,14 +193,27 @@ void recieve_packet()
             exit(EXIT_FAILURE);
         }
 
-        printf("RECIEVE PACKET: placed in server buffer\n");
-        strcpy(server_buf.packet[server_buf.seq_2].data, pack.data);
-        server_buf.packet[server_buf.seq_2].ack = pack.ack;
-        server_buf.packet[server_buf.seq_2].fin = pack.fin;
-        server_buf.packet[server_buf.seq_2].syn = pack.syn;
-        server_buf.packet[server_buf.seq_2].sum = pack.sum;
-        server_buf.packet[server_buf.seq_2].seq = pack.seq;
-        server_buf.seq_2 = next_seq(server_buf.seq_2);
+        if(pack.syn == 1 && pack.ack == 1){
+          input = SYN_ACK;
+        }else if(pack.fin == 1 && pack.ack == 1){
+          input = FIN_ACK;
+        }else if(pack.fin == 1){
+          input = FIN;
+        }else if(pack.ack == 1){
+          input = ACK;
+        }else if(pack.syn == 1){
+          input = SYN;
+        }else{
+          printf("RECIEVE PACKET: placed in server buffer\n");
+          strcpy(server_buf.packet[server_buf.seq_2].data, pack.data);
+          server_buf.packet[server_buf.seq_2].ack = pack.ack;
+          server_buf.packet[server_buf.seq_2].fin = pack.fin;
+          server_buf.packet[server_buf.seq_2].syn = pack.syn;
+          server_buf.packet[server_buf.seq_2].sum = pack.sum;
+          server_buf.packet[server_buf.seq_2].seq = pack.seq;
+          server_buf.seq_2 = next_seq(server_buf.seq_2);
+        }
+
 
         //print details of the client/peer and the data received
         printf("Received packet from %s:%d\n", inet_ntoa(server_socket_client_address.sin_addr), ntohs(server_socket_client_address.sin_port));

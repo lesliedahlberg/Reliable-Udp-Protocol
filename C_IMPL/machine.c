@@ -47,6 +47,7 @@
      char data[32];
    } PACKET;
 
+
    /* BUFFER */
    typedef struct {
      int seq_0;

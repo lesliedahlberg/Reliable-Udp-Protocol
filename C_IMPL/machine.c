@@ -384,7 +384,7 @@ void OUT_send_packet(PACKET p){
   printf("OUT: send packet; DATA = %s;\n", p.data);
   p.sum = 0;
   p.sum = ip_checksum(&p, sizeof(PACKET));
-  if(rand()%2){
+  if(rand()%3 == 1){
     p.sum = 0;
   }
 

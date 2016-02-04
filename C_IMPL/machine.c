@@ -177,7 +177,7 @@ void send_ack(int seq){
 void recieve_packet()
 {
     PACKET pack;
-    int i = 2;
+    int i = 4;
     while(i > 0)
     {
         i--;
@@ -214,7 +214,7 @@ void recieve_packet()
 void recieve_ack()
 {
     PACKET ack;
-    int i = 2;
+    int i = 4;
     while(i > 0)
     {
         i--;
@@ -230,21 +230,23 @@ void recieve_ack()
             exit(EXIT_FAILURE);
         }
 
-        printf("RECIEVE PACKET: placed in server buffer\n");
+        printf("RECIEVE ACK: placed in server buffer\n");
         strcpy(ack_buf.packet[ack_buf.seq_2].data, ack.data);
         ack_buf.packet[ack_buf.seq_2].ack = ack.ack;
         ack_buf.packet[ack_buf.seq_2].fin = ack.fin;
         ack_buf.packet[ack_buf.seq_2].syn = ack.syn;
         ack_buf.packet[ack_buf.seq_2].sum = ack.sum;
         ack_buf.packet[ack_buf.seq_2].seq = ack.seq;
-        ack_buf.seq_2 = next_seq(ack_buf.seq_2);
+
 
         //print details of the client/peer and the data received
-        printf("Received packet from %s:%d\n", inet_ntoa(server_socket_address.sin_addr), ntohs(server_socket_address.sin_port));
-        printf("Data: %s\n" , ack.data);
+        printf("Received ack from %s:%d\n", inet_ntoa(server_socket_address.sin_addr), ntohs(server_socket_address.sin_port));
+        printf("ACK_SEQ: %d:%d, %d\n", ack.seq, ack.ack, ack_buf.packet[ack_buf.seq_2].seq);
+
+        ack_buf.seq_2 = next_seq(ack_buf.seq_2);
     }
 
-    close(server_socket);
+
 }
 
 /* OUT FUNCTIONS */
@@ -404,13 +406,13 @@ int main(int argc, char *argv[]){
         recieve_packet();
         sleep(1);
 
-        input = FIN;
+        /*input = FIN;
         sleep(1);
         input = CLOSE;
         sleep(1);
         input = ACK;
         sleep(1);
-        input = EXIT;
+        input = EXIT;*/
         getchar();
 
 
@@ -462,6 +464,7 @@ int main(int argc, char *argv[]){
         send_packet("MSG2");
         send_packet("MSG3");
         send_packet("MSG4");
+        recieve_ack();
         /*sleep(5);
 
 
@@ -579,15 +582,19 @@ void * STATE_MACHINE(void *arg){
                 state = FIN_WAIT_1;
                 OUT_send_fin();
               }else{
-                int i;
-                i = client_buf.seq_2;
-                while(i < client_buf.seq_1){
-                  if(timeout(client_established[i]) == 1){
-                    printf("PACK_TIMEOUT: %d; ON=%d;\n", i, client_established[i].on);
-                    client_buf.seq_1 = i;
+
+                if(ack_buf.seq_1 < ack_buf.seq_2 || ack_buf.seq_1 > ack_buf.seq_2){
+                  printf("-----READING ACK BUF---seq_1:%d < seq_2:%d----\n", ack_buf.seq_1, ack_buf.seq_2);
+                  if(ack_buf.packet[ack_buf.seq_1].seq == client_buf.seq_2){
+                    printf("-----ACCEPTABLE ACK-------\n");
+                    printf("ACKBUF.seq:%d == client_buf.seq_2:%d\n", ack_buf.packet[ack_buf.seq_1].seq, client_buf.seq_2);
+                    reset_timer(&client_established[client_buf.seq_2]);
+                    client_buf.seq_2 = next_seq(client_buf.seq_2);
+                    ack_buf.seq_1 = next_seq(ack_buf.seq_1);
+
                   }
-                  i++;
                 }
+
                 if(client_buf.seq_0 > client_buf.seq_1 && window_size() < WINDOW){
                   printf("WINDOW: %d < %d\n", window_size(), WINDOW);
                   OUT_send_packet(client_buf.packet[client_buf.seq_1]);
@@ -605,14 +612,22 @@ void * STATE_MACHINE(void *arg){
                   printf("SET TIMER: %d; ON=%d;\n", client_buf.seq_1, client_established[client_buf.seq_1].on);
                   client_buf.seq_1 = next_seq(client_buf.seq_1);
                 }else{
-                  if(ack_buf.seq_1 > ack_buf.seq_2 || ack_buf.seq_1 < ack_buf.seq_2){
-                    if(PACKET_ACK(ack_buf.packet[ack_buf.seq_2]) == next_ack(client_buf.last_ack)){
-                      client_buf.last_ack = next_ack(client_buf.last_ack);
-                      reset_timer(&client_established[client_buf.seq_2]);
-                      client_buf.seq_2 = next_seq(client_buf.seq_2);
-                    }
-                  }
+
+
                 }
+
+
+                int i;
+                i = client_buf.seq_2;
+                while(i < client_buf.seq_1){
+                  if(timeout(client_established[i]) == 1){
+                    printf("PACK_TIMEOUT: %d; ON=%d;\n", i, client_established[i].on);
+                    client_buf.seq_1 = i;
+                  }
+                  i++;
+                }
+
+
               }
             } break;
 

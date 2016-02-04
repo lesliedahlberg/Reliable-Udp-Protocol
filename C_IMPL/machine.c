@@ -156,9 +156,9 @@ void recieve_packet()
         fflush(stdout);
 
         //try to receive some data, this is a blocking call
-        if ((recv_len = recvfrom(server_socket, pack, sizeof(PACKET), 0, (struct sockaddr *) &server_socket_client_address, sizeof(server_socket_client_address))) == -1)
+        if ((recv_len = recvfrom(server_socket, &pack, sizeof(PACKET), 0, (struct sockaddr *) &server_socket_client_address, sizeof(server_socket_client_address))) == -1)
         {
-            die("recvfrom()");
+            //die("recvfrom()");
         }
 
         printf("RECIEVE PACKET: placed in server buffer\n");
@@ -170,7 +170,7 @@ void recieve_packet()
         server_buf.packet[server_buf.seq_2].seq = pack.seq;
         server_buf.seq_2 = next_seq(server_buf.seq_2);
 
-        print details of the client/peer and the data received
+        //print details of the client/peer and the data received
         printf("Received packet from %s:%d\n", inet_ntoa(server_socket_client_address.sin_addr), ntohs(server_socket_client_address.sin_port));
         printf("Data: %s\n" , pack.data);
     }
@@ -190,9 +190,9 @@ void OUT_send_syn(){
 
 void OUT_send_packet(PACKET p){
   printf("OUT: send packet; DATA = %s;\n", p.data);
-  if(sendto(server_socket, p, sizeof(PACKET), 0, (struct sockaddr *) &server_socket_address, server_socket_length)==-1)
+  if(sendto(server_socket, &p, sizeof(PACKET), 0, (struct sockaddr *) &server_socket_address, server_socket_length)==-1)
     {
-        die("sendto()");
+        //die("sendto()");
     }
 }
 
@@ -313,19 +313,19 @@ int main(int argc, char *argv[]){
 
         if ((server_socket=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1)
         {
-            die("socket");
+            //die("socket");
         }
         // zero out the structure
         memset((char *) &server_socket_self_address, 0, sizeof(server_socket_self_address));
-         server_socket
+
         server_socket_self_address.sin_family = AF_INET;
-        server_socket_self_address.sin_port = htons(PORT);
+        server_socket_self_address.sin_port = htons(SERVER_PORT);
         server_socket_self_address.sin_addr.s_addr = htonl(INADDR_ANY);
 
         //bind socket to port
         if( bind(server_socket , (struct sockaddr*)&server_socket_self_address, sizeof(server_socket_self_address) ) == -1)
         {
-            die("bind");
+            //die("bind");
         }
 
 
@@ -360,7 +360,7 @@ int main(int argc, char *argv[]){
         //Connect client
         if ((server_socket=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1)
             {
-                die("socket");
+                //die("socket");
             }
         memset((char *) &server_socket_address, 0, sizeof(server_socket_address));
         server_socket_address.sin_family = AF_INET;

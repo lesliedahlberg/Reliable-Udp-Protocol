@@ -164,7 +164,7 @@ void send_ack(int seq, int ack, int syn, int fin){
   ack_packet.fin = fin;
   unsigned int slen;
   //SEND over network
-  
+
     printf("Socket: %d;\n", server_socket);
     if(is_server == 1){
       slen = sizeof(server_socket_client_address);
@@ -177,7 +177,7 @@ void send_ack(int seq, int ack, int syn, int fin){
     }
     else if(is_server == 0)
     {
-        slen = sizeof(server_socket_address); 
+        slen = sizeof(server_socket_address);
         if((sendto(server_socket, &ack_packet, sizeof(PACKET), 0, (struct sockaddr *) &server_socket_address, slen))==-1)
         {
             //die("sendto()");
@@ -281,11 +281,12 @@ void recieve_ack()
 /* OUT FUNCTIONS */
 void OUT_send_ack(int seq){
   printf("OUT: send ack\n");
-  send_ack(seq);
+  send_ack(seq, 1, 0, 0);
 }
 
 void OUT_send_syn(){
   printf("OUT: send syn\n");
+  send_ack(-1, 0, 1, 0);
 }
 
 void OUT_send_packet(PACKET p){
@@ -300,14 +301,17 @@ void OUT_send_packet(PACKET p){
 
 void OUT_send_syn_ack(){
   printf("OUT: send syn ack\n");
+  send_ack(-1, 1, 1, 0);
 }
 
 void OUT_send_fin(){
   printf("OUT: send fin\n");
+  send_ack(-1, 0, 0, 1);
 }
 
 void OUT_send_fin_ack(){
   printf("OUT: send fin ack\n");
+  send_ack(-1, 1, 0, 1);
 }
 
 int PACKET_ACK(PACKET t){

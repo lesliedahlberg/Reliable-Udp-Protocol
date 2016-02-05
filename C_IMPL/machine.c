@@ -511,6 +511,7 @@
              }
 
              if(rand()%drop_rate != 1){
+               printf("DID NOT DROP FLAG\n");
                /* Handle special flags */
                if(ack.syn == 1 && ack.ack == 1){
                  input = SYN_ACK;
@@ -739,12 +740,15 @@
                          state = PRE_ESTABLISHED;
                          reset_timer(&syn_sent_timer);
                      }else{
+
                          if(syn_sent_timer.on == -1){
+                             printf("NO SYN_ACK -> set timer\n");
                              syn_sent_timer.on = 3;
                              syn_sent_timer.start = clock();
                              syn_sent_timer.length = clock_time(10);
                          }else{
                              if(timeout(syn_sent_timer) == 1){
+                                printf("NO SYN_ACK -> timeout\n");
                                  OUT_send_syn();
                                  syn_sent_timer.on--;
                              }

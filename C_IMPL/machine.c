@@ -477,28 +477,34 @@
                  exit(EXIT_FAILURE);
              }
 
-             /* Handle special flags */
-             if(ack.syn == 1 && ack.ack == 1){
-               input = SYN_ACK;
-             }else if(ack.fin == 1 && ack.ack == 1){
-               input = FIN_ACK;
-             }else if(ack.fin == 1){
-               input = FIN;
-             }else if(ack.ack == 1 && ack.seq == -1){
-               input = ACK;
-             }else if(ack.syn == 1){
-               input = SYN;
+             if(rand()%5 != 1){
+               /* Handle special flags */
+               if(ack.syn == 1 && ack.ack == 1){
+                 input = SYN_ACK;
+               }else if(ack.fin == 1 && ack.ack == 1){
+                 input = FIN_ACK;
+               }else if(ack.fin == 1){
+                 input = FIN;
+               }else if(ack.ack == 1 && ack.seq == -1){
+                 input = ACK;
+               }else if(ack.syn == 1){
+                 input = SYN;
+               }else{
+                 /* Handle normal seq. acks */
+                 //printf("RECV ACK: %d\n", ack.seq);
+                 strcpy(ack_buf.packet[ack_buf.seq_2].data, ack.data);
+                 ack_buf.packet[ack_buf.seq_2].ack = ack.ack;
+                 ack_buf.packet[ack_buf.seq_2].fin = ack.fin;
+                 ack_buf.packet[ack_buf.seq_2].syn = ack.syn;
+                 ack_buf.packet[ack_buf.seq_2].sum = ack.sum;
+                 ack_buf.packet[ack_buf.seq_2].seq = ack.seq;
+                 ack_buf.seq_2 = next_seq(ack_buf.seq_2);
+               }
              }else{
-               /* Handle normal seq. acks */
-               //printf("RECV ACK: %d\n", ack.seq);
-               strcpy(ack_buf.packet[ack_buf.seq_2].data, ack.data);
-               ack_buf.packet[ack_buf.seq_2].ack = ack.ack;
-               ack_buf.packet[ack_buf.seq_2].fin = ack.fin;
-               ack_buf.packet[ack_buf.seq_2].syn = ack.syn;
-               ack_buf.packet[ack_buf.seq_2].sum = ack.sum;
-               ack_buf.packet[ack_buf.seq_2].seq = ack.seq;
-               ack_buf.seq_2 = next_seq(ack_buf.seq_2);
+               printf("ERROR SIMULATION: FLAG PACKET DROPPED [seq: %d, ack: %d, syn: %d, fin: %d]\n",ack.seq, ack.ack, ack.syn, ack.fin);
              }
+
+
          }
          return NULL;
      }
@@ -692,7 +698,7 @@
                  case SYN_SENT:{
                      //printf("\nSTATE = SYN_SENT\n");
                      if(input == SYN_ACK){
-                       printf("SYN_ACK\n");
+                       printf("IN: SYN_ACK\n");
                          input = NONE;
                          //Send ACK
                          OUT_send_ack(-1);
@@ -723,7 +729,7 @@
                  case PRE_ESTABLISHED:{
                      //printf("\nSTATE = PRE_ESTABLISHED\n");
                      if(input == SYN_ACK){
-                       printf("SYN_ACK\n");
+                       printf("IN: SYN_ACK\n");
                          input = NONE;
                          OUT_send_ack(-1);
                      }else{
@@ -809,7 +815,7 @@
                  case LISTENING:{
                      //printf("\nSTATE = LISTENING\n");
                      if(input == SYN){
-                       printf("SYN\n");
+                       printf("IN: SYN\n");
                          input = NONE;
                          OUT_send_syn_ack();
                          state = SYN_RECIEVED;
@@ -825,7 +831,7 @@
                  case SYN_RECIEVED:{
                      //printf("\nSTATE = SYN_RECIEVED\n");
                      if(input == ACK){
-                       printf("ACK\n");
+                       printf("IN: ACK\n");
                        input = NONE;
                        state = ESTABLISHED_SERVER;
                        reset_timer(&syn_recieved_timer);
@@ -858,7 +864,7 @@
 
                      //printf("\nSTATE = ESTABLISHED_SERVER\n");
                    if(input == FIN){
-                     printf("FIN\n");
+                     printf("IN: FIN\n");
                      input = NONE;
                      OUT_send_ack(-1);
                      state = CLOSE_WAIT;

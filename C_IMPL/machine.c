@@ -421,11 +421,17 @@
              }else if(pack.syn == 1){
                input = SYN;
              }else{
-               if(rand()%3 == 1){
-                 pack.sum = 0;
-               }
+
                /* Process standard package */
                if(ip_checksum(&pack, sizeof(PACKET)) == 0){
+
+
+                 //Error simulation
+                 if(pack.seq == server_buf.seq_1 && rand()%3 == 1){
+                   printf("ERROR SIMULATION: PACKET [Wrong order, seq: %d -> seq:%d]\n", pack.seq, ++pack.seq;);
+                 }
+
+
                  if(pack.seq == server_buf.seq_1){
                    //printf("RECIEVE PACKET: placed in server buffer\n");
                    //printf("Data: %s\n" , pack.data);
@@ -624,6 +630,7 @@
        p.sum = ip_checksum(&p, sizeof(PACKET));
        if(rand()%3 == 1){
          p.sum = 0;
+         printf("ERROR SIMULATION: PACKET [INVALID CHECKSUM: SEQ:%d]\n", p.seq);
        }
 
        if(sendto(server_socket, &p, sizeof(PACKET), 0, (struct sockaddr *) &server_socket_address, server_socket_length)==-1)

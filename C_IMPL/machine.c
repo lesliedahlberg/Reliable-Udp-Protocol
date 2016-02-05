@@ -434,11 +434,12 @@
                    server_buf.packet[server_buf.seq_2].seq = pack.seq;
                    server_buf.seq_2 = next_seq(server_buf.seq_2);
                  }else{
+                   printf("RCVD: PACKET [Wrong order, seq: %d]\n", pack.seq);
                    //printf("ERROR: Packet out of order [SEQ: %d] (pack.seq:%d != server_buf.seq_1:%d)\n", pack.seq, pack.seq, server_buf.seq_1);
                    re_ack = 1;
                  }
                }else{
-                 //printf("ERROR: Invalid checksum\n");
+                 printf("RCVD: PACKET [Invalid checksum]\n");
                }
              }
          }

@@ -255,7 +255,7 @@
      /* ------ */
 
      /* Listen to connections */
-     void u_listen(){
+     void u_listen(char* server_ip_address){
          printf("u_listen()\n");
          input = LISTEN;
          is_server = 1;
@@ -270,7 +270,7 @@
 
          server_socket_self_address.sin_family = AF_INET;
          server_socket_self_address.sin_port = htons(SERVER_PORT);
-         server_socket_self_address.sin_addr.s_addr = htonl(INADDR_ANY);
+         server_socket_self_address.sin_addr.s_addr = inet_addr(server_ip_address);
 
          //bind socket to port
          if( bind(server_socket , (struct sockaddr*)&server_socket_self_address, sizeof(server_socket_self_address) ) == -1)
@@ -296,7 +296,7 @@
      /* ------ */
 
      /* Connect to server */
-     void u_connect(){
+     void u_connect(char* server_ip_address){
          printf("u_connect()\n");
          input = CONNECT;
          id = rand()%2000000000;
@@ -311,6 +311,7 @@
          server_socket_address.sin_family = AF_INET;
          server_socket_address.sin_port = htons(SERVER_PORT);
 
+
          // zero out the structure
          memset((char *) &client_address, 0, sizeof(client_address));
          client_address.sin_family = AF_INET;
@@ -324,7 +325,7 @@
              exit(EXIT_FAILURE);
          }
 
-         if (inet_aton(server_ip , &server_socket_address.sin_addr) == 0)
+         if (inet_aton(server_ip_address , &server_socket_address.sin_addr) == 0)
              {
 
                  fprintf(stderr, "inet_aton() failed\n");
@@ -1149,11 +1150,11 @@
 
 
 
-    if(argc == 2){
+    if(argc >= 2){
       /* START AS SERVER */
       if(!strcmp(argv[1], "server")){
           u_start();
-          u_listen();
+          u_listen(argv[2]);
           u_start_recieving();
           while(state != EXITING){
             getchar();
@@ -1164,7 +1165,7 @@
 
 
           u_start();
-          u_connect();
+          u_connect(argv[2]);
           u_send("Archives (static libraries) are acted upon differently than are shared objects (dynamic libraries). With dynamic libraries, all the library symbols go into the virtual address space of the output file, and all the symbols are available to all the other files in the link. In contrast, static linking only looks through the archive for the undefined symbols presently known to the loader at the time the archive is processed.", sizeof("Archives (static libraries) are acted upon differently than are shared objects (dynamic libraries). With dynamic libraries, all the library symbols go into the virtual address space of the output file, and all the symbols are available to all the other files in the link. In contrast, static linking only looks through the archive for the undefined symbols presently known to the loader at the time the archive is processed."));
           u_prep_sending();
           sleep(20);

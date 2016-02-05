@@ -797,17 +797,25 @@
 
                      if(ack_buf.seq_1 < ack_buf.seq_2 || ack_buf.seq_1 > ack_buf.seq_2){
                        //printf("-----READING ACK BUF---seq_1:%d < seq_2:%d----\n", ack_buf.seq_1, ack_buf.seq_2);
-                       if(ack_buf.packet[ack_buf.seq_1].seq == client_buf.seq_2){
-                         //printf("-----ACCEPTABLE ACK-------\n");
-                         //printf("ACKBUF.seq:%d == client_buf.seq_2:%d\n", ack_buf.packet[ack_buf.seq_1].seq, client_buf.seq_2);
-                         //printf("RECV ACK %d;\n", client_buf.seq_2);
-                         printf("RCVD: ACK [SEQ:%d]\n", client_buf.seq_2);
-                         reset_timer(&client_established[client_buf.seq_2]);
-                         client_buf.seq_2 = next_seq(client_buf.seq_2);
-                         //ack_buf.seq_1 = next_seq(ack_buf.seq_1);
-
+                       if(client_buf.seq_2 < client_buf.seq_1){
+                         if(ack_buf.packet[ack_buf.seq_1].seq == client_buf.seq_2){
+                           printf("RCVD: ACK [SEQ:%d]\n", client_buf.seq_2);
+                           reset_timer(&client_established[client_buf.seq_2]);
+                           client_buf.seq_2 = next_seq(client_buf.seq_2);
+                         }else if(ack_buf.packet[ack_buf.seq_1].seq > client_buf.seq_2){
+                           printf("RCVD: ACK [SEQ:%d]\n", ack_buf.packet[ack_buf.seq_1].seq);
+                           reset_timer(&client_established[ack_buf.packet[ack_buf.seq_1].seq]);
+                           client_buf.seq_2 = next_seq(ack_buf.packet[ack_buf.seq_1].seq);
+                         }
+                       }else if(client_buf.seq_2 > client_buf.seq_1){
+                         if(ack_buf.packet[ack_buf.seq_1].seq >= client_buf.seq_2 || ack_buf.packet[ack_buf.seq_1].seq < client_buf.seq_1){
+                           printf("RCVD: ACK [SEQ:%d]\n", ack_buf.packet[ack_buf.seq_1].seq);
+                           reset_timer(&client_established[ack_buf.packet[ack_buf.seq_1].seq]);
+                           client_buf.seq_2 = next_seq(ack_buf.packet[ack_buf.seq_1].seq);
+                         }
 
                        }
+
                        ack_buf.seq_1 = next_seq(ack_buf.seq_1);
                      }
 

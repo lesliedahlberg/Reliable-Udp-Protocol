@@ -1131,6 +1131,7 @@
           u_prep_sending();
           sleep(20);
           u_close();
+          sleep(5);
           u_exit();
 
           while(state != EXITING){

@@ -403,8 +403,8 @@
 
 
              /* Kill thread if machine stops */
-             if(state == TIME_WAIT){
-               //return NULL;
+             if(state == EXITING){
+               return NULL;
              }
 
              fflush(stdout);
@@ -1116,7 +1116,7 @@
           u_start();
           u_listen();
           u_start_recieving();
-          while(1){
+          while(state != EXITING){
             getchar();
           }
 
@@ -1132,7 +1132,7 @@
           u_close();
           u_exit();
 
-          while(1){
+          while(state != EXITING){
             getchar();
           }
           //u_close();

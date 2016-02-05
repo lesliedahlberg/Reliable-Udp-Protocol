@@ -53,7 +53,7 @@
      int fin;
      int syn;
      int id;
-     int window_size
+     int window_size;
      short int sum;
      char data[32];
    } PACKET;
@@ -548,7 +548,7 @@
              }
 
              if(ack.window_size > 0){
-               window = ack.winsize;
+               window = ack.window_size;
              }
 
              if(rand()%drop_rate != 1){

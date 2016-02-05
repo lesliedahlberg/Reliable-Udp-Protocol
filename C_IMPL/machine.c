@@ -511,7 +511,7 @@
              }
 
              if(rand()%drop_rate != 1){
-               printf("DID NOT DROP FLAG\n");
+               //printf("DID NOT DROP FLAG\n");
                /* Handle special flags */
                if(ack.syn == 1 && ack.ack == 1){
                  input = SYN_ACK;

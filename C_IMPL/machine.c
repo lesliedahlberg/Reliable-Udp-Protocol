@@ -1,3 +1,12 @@
+/* PROGRAM: machine
+ * AUTHOR: Leslie Dahlberg, Jonathan Larsson
+ * EMAIL: ldg14001@student.mdh.se, jln14010@student.mdh.se
+ * DATE: 2016-02-05
+ * File: machine.c
+ * Reliable data transfer over UDP
+ * USAGE: 1. As server type "./machine server"
+ */
+
 #include <stdio.h>
 #include <errno.h>
 #include <stdlib.h>
@@ -43,6 +52,8 @@
      int ack;
      int fin;
      int syn;
+     int id;
+     int window_size
      short int sum;
      char data[32];
    } PACKET;
@@ -110,6 +121,8 @@
    int is_server;
    int re_ack;
    int drop_rate;
+   int id;
+   int neg_window_size;
 
  /* =================
     FUNCTION DEFINITIONS
@@ -172,6 +185,7 @@
 
          window = 2;
          is_server = 0;
+         neg_window_size = 0;
 
          /* Intializes random number generator */
          time_t t;
@@ -282,6 +296,7 @@
      void u_connect(){
          printf("u_connect()\n");
          input = CONNECT;
+         id = rand()%2000000000;
          //Connect client
          if ((server_socket=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1)
              {
@@ -354,6 +369,9 @@
      /* SEND PACKET */
      /* Place package onto buffer */
      void send_packet(char data[32]){
+       if(is_server == 0){
+         client_buf.packet[client_buf.seq_0].id = id;
+       }
        strcpy(client_buf.packet[client_buf.seq_0].data, data);
        client_buf.packet[client_buf.seq_0].seq = client_buf.seq_0;
        client_buf.packet[client_buf.seq_0].sum = ip_checksum(&client_buf.packet[client_buf.seq_0], sizeof(PACKET));
@@ -371,6 +389,15 @@
        ack_packet.seq = seq;
        ack_packet.syn = syn;
        ack_packet.fin = fin;
+
+       if(is_server == 0){
+         ack_packet.id = id;
+         ack_packet.window_size = window;
+       }else if(is_server == 1 && neg_window_size == 1){
+         ack_packet.window_size = window;
+       }else{
+         ack_packet.window_size = -1;
+       }
 
        unsigned int slen;
        /* SERVER scenario */
@@ -403,7 +430,7 @@
 
 
              /* Kill thread if machine stops */
-             if(state == EXITING){
+             if(state == TIME_WAIT){
                return NULL;
              }
 
@@ -415,6 +442,10 @@
              {
                  perror("Recvfrom.\n");
                  exit(EXIT_FAILURE);
+             }
+
+             if(pack.window_size < MODULO/2){
+               window = pack.window_size;
              }
 
              /* Check if packages is special flag */
@@ -514,6 +545,10 @@
              {
                  perror("Recvfrom.\n");
                  exit(EXIT_FAILURE);
+             }
+
+             if(ack.window_size > 0){
+               window = ack.winsize;
              }
 
              if(rand()%drop_rate != 1){

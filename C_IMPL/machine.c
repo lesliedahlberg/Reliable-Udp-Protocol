@@ -5,6 +5,8 @@
  * File: machine.c
  * Reliable data transfer over UDP
  * USAGE: 1. As server type "./machine server"
+ *        2. As client type "./machine client"
+ * Client will connect to the server and send a string of text defined in main();
  */
 
 #include <stdio.h>
@@ -27,7 +29,7 @@
 #define MODULO 1024
 #define WINDOW_MODULO 1024
 #define WINDOW 2
-#define SERVER_IP "127.0.0.111"
+
 #define SERVER_PORT 8888
 #define PACKET_DATA_SIZE 32
 #define RESEND_PACKS 10
@@ -123,6 +125,7 @@
    int drop_rate;
    int id;
    int neg_window_size;
+   char server_ip[] = "127.0.0.111";
 
  /* =================
     FUNCTION DEFINITIONS
@@ -183,7 +186,7 @@
         printf("u_start()\n");
 
 
-         window = 2;
+         window = 3;
          is_server = 0;
          neg_window_size = 0;
 
@@ -321,7 +324,7 @@
              exit(EXIT_FAILURE);
          }
 
-         if (inet_aton(SERVER_IP , &server_socket_address.sin_addr) == 0)
+         if (inet_aton(server_ip , &server_socket_address.sin_addr) == 0)
              {
 
                  fprintf(stderr, "inet_aton() failed\n");

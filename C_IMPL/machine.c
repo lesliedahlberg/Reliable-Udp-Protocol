@@ -421,6 +421,9 @@
              }else if(pack.syn == 1){
                input = SYN;
              }else{
+               if(rand()%3 == 1){
+                 pack.sum = 0;
+               }
                /* Process standard package */
                if(ip_checksum(&pack, sizeof(PACKET)) == 0){
                  if(pack.seq == server_buf.seq_1){

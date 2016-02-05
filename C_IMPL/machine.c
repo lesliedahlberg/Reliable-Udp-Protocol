@@ -179,7 +179,7 @@
          /* No acks sent yet */
          first_ack = 1;
          re_ack = 0;
-         drop_rate = 8;
+         drop_rate = 20;
 
          /* Buffer setup*/
          server_buf.seq_0 = 0; //Not used

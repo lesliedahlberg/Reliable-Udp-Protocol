@@ -411,15 +411,42 @@
 
              /* Check if packages is special flag */
              if(pack.syn == 1 && pack.ack == 1){
-               input = SYN_ACK;
+               if(rand()%10 != 1){
+                  input = SYN_ACK;
+                  }else
+
+                 printf("ERROR SIMULATION: DROPPED SYN_ACK\n");
+               }
+
              }else if(pack.fin == 1 && pack.ack == 1){
-               input = FIN_ACK;
+               if(rand()%10 != 1){
+                 input = FIN_ACK;
+                 }else
+
+                 printf("ERROR SIMULATION: DROPPED FIN_ACK\n");
+               }
+
              }else if(pack.fin == 1){
-               input = FIN;
+               if(rand()%10 != 1){
+                  input = FIN;
+                }else
+                 printf("ERROR SIMULATION: DROPPED FIN\n");
+               }
+
              }else if(pack.ack == 1){
-               input = ACK;
+               if(rand()%10 != 1){
+                 input = ACK;
+               }else
+
+                 printf("ERROR SIMULATION: DROPPED ACK\n");
+               }
+
              }else if(pack.syn == 1){
-               input = SYN;
+               if(rand()%10 != 1){
+                 input = SYN;
+                 }else
+                 printf("ERROR SIMULATION: DROPPED SYN\n");
+               }
              }else{
 
                /* Process standard package */

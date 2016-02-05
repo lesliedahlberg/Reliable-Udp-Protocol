@@ -403,7 +403,7 @@
 
 
              /* Kill thread if machine stops */
-             if(state == EXITING){
+             if(state == TIME_WAIT){
                return NULL;
              }
 

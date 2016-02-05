@@ -885,6 +885,7 @@
                        printf("IN: ACK\n");
                        input = NONE;
                        state = ESTABLISHED_SERVER;
+                       printf("ESTABLISHED_SERVER\n");
                        reset_timer(&syn_recieved_timer);
                      }else if(input == RESET){
                        printf("RESET\n");

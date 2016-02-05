@@ -920,16 +920,16 @@
                  case FIN_WAIT_1:{
                      //printf("\nSTATE = FIN_WAIT_1\n");
                    if(input == ACK){
-                     printf("ACK\n");
+                     printf("IN: ACK\n");
                      input = NONE;
                      state = FIN_WAIT_2;
                    }else if(input == FIN_ACK){
-                     printf("FIN_ACK\n");
+                     printf("IN: FIN_ACK\n");
                      input = NONE;
                      OUT_send_ack(-1);
                      state = TIME_WAIT;
                    }else if(input == FIN){
-                     printf("FIN\n");
+                     printf("IN: FIN\n");
                      input == NONE;
                      OUT_send_ack(-1);
                      state = CLOSING;
@@ -956,7 +956,7 @@
                  case FIN_WAIT_2:{
                     // printf("\nSTATE = FIN_WAIT_2\n");
                    if(input == FIN){
-                     printf("FIN\n");
+                     printf("IN: FIN\n");
                      input = NONE;
                      OUT_send_ack(-1);
                      state = TIME_WAIT;
@@ -968,11 +968,11 @@
                  case TIME_WAIT:{
                      //printf("\nSTATE = TIME_WAIT\n");
                    if(input == FIN){
-                     printf("FIN\n");
+                     printf("IN: FIN\n");
                      input = NONE;
                      OUT_send_ack(-1);
                    }else if(input == FIN_ACK){
-                     printf("FIN_ACK\n");
+                     printf("IN: FIN_ACK\n");
                      input = NONE;
                      OUT_send_ack(-1);
                    }else{
@@ -1020,7 +1020,7 @@
                  case CLOSE_WAIT:{
                      //printf("\nSTATE = CLOSE_WAIT\n");
                    if(input == FIN){
-                     printf("FIN\n");
+                     printf("IN: FIN\n");
                      input = NONE;
                      OUT_send_ack(-1);
                    }else if(close_wait_timer.on == -1){

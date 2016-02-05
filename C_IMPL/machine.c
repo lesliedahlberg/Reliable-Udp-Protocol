@@ -646,12 +646,12 @@
      /* ====================== */
 
      void OUT_send_ack(int seq){
-       //printf("OUT: send ack %d\n", seq);
+       printf("SENT: ACK [seq: %d]\n", seq);
        send_message(seq, 1, 0, 0);
      }
 
      void OUT_send_syn(){
-       //printf("OUT: send syn\n");
+       printf("SENT: SYN\n");
        send_message(-1, 0, 1, 0);
      }
 
@@ -897,7 +897,7 @@
                      state = CLOSE_WAIT;
                    }else{
                      if(re_ack == 1 && first_ack == 0){
-                       printf("SENT: RE_ACK [SEQ: %d]\n", prev_ack(server_buf.seq_1));
+                       //printf("ACK IS RE_ACK");
                        OUT_send_ack(prev_ack(server_buf.seq_1));
                        re_ack = 0;
                      }
@@ -906,7 +906,7 @@
 
                          //printf("ESTABLISHED_SERVER >> new packet\n");
                          printf("RCVD: PACKET [SEQ: %d, DATA: %s];\n", server_buf.packet[server_buf.seq_1].seq, server_buf.packet[server_buf.seq_1].data);
-                         printf("SENT: ACK [SEQ: %d]\n", server_buf.packet[server_buf.seq_1].seq);
+                         //printf("SENT: ACK [SEQ: %d]\n", server_buf.packet[server_buf.seq_1].seq);
                          OUT_send_ack(server_buf.packet[server_buf.seq_1].seq);
                          server_buf.seq_1 = next_seq(server_buf.seq_1);
                          first_ack = 0;

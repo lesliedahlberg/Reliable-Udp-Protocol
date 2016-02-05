@@ -109,6 +109,7 @@
    int first_ack;
    int is_server;
    int re_ack;
+   int drop_rate;
 
  /* =================
     FUNCTION DEFINITIONS
@@ -178,6 +179,7 @@
          /* No acks sent yet */
          first_ack = 1;
          re_ack = 0;
+         drop_rate = 8;
 
          /* Buffer setup*/
          server_buf.seq_0 = 0; //Not used
@@ -411,7 +413,7 @@
 
              /* Check if packages is special flag */
              if(pack.syn == 1 && pack.ack == 1){
-               if(rand()%10 != 1){
+               if(rand()%drop_rate != 1){
                   input = SYN_ACK;
                 }else{
 
@@ -420,7 +422,7 @@
 
 
              }else if(pack.fin == 1 && pack.ack == 1){
-               if(rand()%10 != 1){
+               if(rand()%drop_rate != 1){
                  input = FIN_ACK;
                }else{
 
@@ -437,7 +439,7 @@
                }
 
              }else if(pack.ack == 1){
-               if(rand()%10 != 1){
+               if(rand()%drop_rate != 1){
                  input = ACK;
                }else{
 
@@ -445,7 +447,7 @@
                }
 
              }else if(pack.syn == 1){
-               if(rand()%10 != 1){
+               if(rand()%drop_rate != 1){
                  input = SYN;
                }else{
                  printf("ERROR SIMULATION: DROPPED SYN\n");
@@ -457,8 +459,9 @@
 
 
                  //Error simulation
-                 if(pack.seq == server_buf.seq_1 && rand()%3 == 1){
-                   printf("ERROR SIMULATION: PACKET [Wrong order, seq: %d -> seq:%d]\n", pack.seq, ++pack.seq);
+                 if(pack.seq == server_buf.seq_1 && rand()%drop_rate == 1){
+                   pack.seq = pack.seq + 1;
+                   printf("ERROR SIMULATION: PACKET [Wrong order, seq: %d -> seq:%d]\n", server_buf.seq_1, pack.seq);
                  }
 
 
@@ -507,7 +510,7 @@
                  exit(EXIT_FAILURE);
              }
 
-             if(rand()%5 != 1){
+             if(rand()%drop_rate != 1){
                /* Handle special flags */
                if(ack.syn == 1 && ack.ack == 1){
                  input = SYN_ACK;
@@ -664,7 +667,7 @@
        /* ERROR SIMULATION */
        p.sum = 0;
        p.sum = ip_checksum(&p, sizeof(PACKET));
-       if(rand()%3 == 1){
+       if(rand()%drop_rate == 1){
          p.sum = 0;
          printf("ERROR SIMULATION: PACKET [INVALID CHECKSUM: SEQ:%d]\n", p.seq);
        }

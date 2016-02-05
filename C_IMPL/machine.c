@@ -413,30 +413,33 @@
              if(pack.syn == 1 && pack.ack == 1){
                if(rand()%10 != 1){
                   input = SYN_ACK;
-                  }else
+                }else{
 
                  printf("ERROR SIMULATION: DROPPED SYN_ACK\n");
                }
 
+
              }else if(pack.fin == 1 && pack.ack == 1){
                if(rand()%10 != 1){
                  input = FIN_ACK;
-                 }else
+               }else{
 
                  printf("ERROR SIMULATION: DROPPED FIN_ACK\n");
+
                }
 
              }else if(pack.fin == 1){
                if(rand()%10 != 1){
                   input = FIN;
-                }else
+                }else{
                  printf("ERROR SIMULATION: DROPPED FIN\n");
+
                }
 
              }else if(pack.ack == 1){
                if(rand()%10 != 1){
                  input = ACK;
-               }else
+               }else{
 
                  printf("ERROR SIMULATION: DROPPED ACK\n");
                }
@@ -444,7 +447,7 @@
              }else if(pack.syn == 1){
                if(rand()%10 != 1){
                  input = SYN;
-                 }else
+               }else{
                  printf("ERROR SIMULATION: DROPPED SYN\n");
                }
              }else{

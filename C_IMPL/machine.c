@@ -404,7 +404,7 @@
 
              /* Kill thread if machine stops */
              if(state == TIME_WAIT){
-               return NULL;
+               //return NULL;
              }
 
              fflush(stdout);

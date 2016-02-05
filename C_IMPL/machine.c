@@ -428,7 +428,7 @@
 
                  //Error simulation
                  if(pack.seq == server_buf.seq_1 && rand()%3 == 1){
-                   printf("ERROR SIMULATION: PACKET [Wrong order, seq: %d -> seq:%d]\n", pack.seq, ++pack.seq;);
+                   printf("ERROR SIMULATION: PACKET [Wrong order, seq: %d -> seq:%d]\n", pack.seq, ++pack.seq);
                  }
 
 

@@ -127,6 +127,10 @@
    int neg_window_size;
    char server_ip[] = "127.0.0.111";
 
+   /* DATA PROCESSING */
+   void (*process_data)(char*);
+
+
  /* =================
     FUNCTION DEFINITIONS
     ================= */
@@ -139,6 +143,7 @@
     /* Server */
     void u_listen();
     void u_start_recieving();
+    void u_set_rcvr(void (*rcvr)(char*));
     /* Client */
     void u_connect();
     void u_prep_sending();
@@ -290,6 +295,11 @@
          perror("Could not start thread.\n");
          exit(EXIT_FAILURE);
        }
+     }
+
+     /* Set function for processing recieved data */
+     void u_set_rcvr(void (*rcvr)(char*)){
+       process_data = rcvr;
      }
 
      /* Client */
@@ -969,6 +979,7 @@
                        if(server_buf.packet[server_buf.seq_1].seq == server_buf.seq_1){
 
                          //printf("ESTABLISHED_SERVER >> new packet\n");
+                         (*process_data)(server_buf.packet[server_buf.seq_1].data);
                          printf("RCVD: PACKET [SEQ: %d, DATA: %s];\n", server_buf.packet[server_buf.seq_1].seq, server_buf.packet[server_buf.seq_1].data);
                          //printf("SENT: ACK [SEQ: %d]\n", server_buf.packet[server_buf.seq_1].seq);
                          OUT_send_ack(server_buf.packet[server_buf.seq_1].seq);
@@ -1144,6 +1155,13 @@
   /* ============================= */
 
 
+  /* USER DATA PROCESSING */
+  /* ==================== */
+
+  void processData(char* data){
+    printf("<<%s>>\n", data);
+  }
+
   /* MAIN */
   /* ==== */
   int main(int argc, char *argv[]){
@@ -1155,6 +1173,7 @@
       if(!strcmp(argv[1], "server")){
           u_start();
           u_listen(argv[2]);
+          u_set_rcvr(&processData);
           u_start_recieving();
           while(state != EXITING){
             getchar();

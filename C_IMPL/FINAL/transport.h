@@ -1,3 +1,34 @@
+/* PROGRAM: transport
+ * AUTHOR: Leslie Dahlberg, Jonathan Larsson
+ * EMAIL: ldg14001@student.mdh.se, jln14010@student.mdh.se
+ * DATE: 2016-02-10
+ * File: transport.h
+ * Reliable data transfer over UDP using Go-Back-N as a sliding window mechanism,
+ * cumulative ACKs and the Internet Checksum for error checking
+ * USAGE: Use u_ functions to establish a connections and send and recieve data reliably
+
+ * FOR SERVER:
+ * u_start();
+ * u_listen("SERVER IP ADDRESS");
+ * u_set_rcvr("POINTER TO FUNCTION THAT PROCESSES RECIEVED DATA");
+ * u_start_recieving();
+ * while(state != EXITING){
+ *   getchar();
+ * }
+
+ * FOR CLIENT:
+ * u_start();
+ * u_connect("SERVER IP ADDRESS");
+ * u_send("DATA"));
+ * u_prep_sending();
+ * u_close();
+ * u_exit();
+ * while(state != EXITING){
+ *   getchar();
+ * }
+ */
+
+
 #ifndef TRANSPORT_H
 #define TRANSPORT_H
 

@@ -214,7 +214,7 @@
        client_buf.packet[client_buf.seq_0].seq = client_buf.seq_0;
        client_buf.packet[client_buf.seq_0].sum = ip_checksum(&client_buf.packet[client_buf.seq_0], sizeof(PACKET));
 
-       printf("WINDOW BUFFER >> %s\n", client_buf.packet[client_buf.seq_0].data);
+       printf("WINDOW BUFFER >> %.*s\n", PACKET_DATA_SIZE, client_buf.packet[client_buf.seq_0].data);
 
        client_buf.seq_0 = next_seq(client_buf.seq_0);
      }

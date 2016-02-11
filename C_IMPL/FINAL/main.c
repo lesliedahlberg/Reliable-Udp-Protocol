@@ -18,7 +18,7 @@
   /* ==================== */
 
   void processData(char* data){
-    printf("<<%.*s>>\n", PACKET_DATA_SIZE, data);
+    printf("<<RCVD BY APP. LAYER: %.*s>>\n", PACKET_DATA_SIZE, data);
   }
 
   /* MAIN */

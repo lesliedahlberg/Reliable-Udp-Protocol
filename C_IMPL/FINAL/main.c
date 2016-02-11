@@ -38,7 +38,7 @@
           u_start_recieving();
           sleep(25);
           //Shut down threads
-          u_exit();
+          //u_exit();
           while(state != EXITING){
             getchar();
           }
@@ -60,7 +60,7 @@
           u_close();
           sleep(5);
           //Shut down threads
-          u_exit();
+          //u_exit();
 
           while(state != EXITING){
             getchar();

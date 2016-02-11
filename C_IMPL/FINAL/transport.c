@@ -227,6 +227,8 @@
        ack_packet.seq = seq;
        ack_packet.syn = syn;
        ack_packet.fin = fin;
+       ack_packet.sum = 0;
+
 
        if(is_server == 0){
          ack_packet.id = id;
@@ -236,6 +238,9 @@
        }else{
          ack_packet.window_size = -1;
        }
+
+       ack_packet.sum = ip_checksum(&ack_packet, sizeof(PACKET));
+       //printf("SEND PCKT SUM: %d;\n", ip_checksum(&ack_packet, sizeof(PACKET)));
 
        unsigned int slen;
        /* SERVER scenario */
@@ -268,8 +273,8 @@
 
 
              /* Kill thread if machine stops */
-             if(state == TIME_WAIT){
-               return NULL;
+             if(state == EXITING){
+                return NULL;
              }
 
              fflush(stdout);
@@ -282,82 +287,83 @@
                  exit(EXIT_FAILURE);
              }
 
-             if(pack.window_size < MODULO/2){
-               window = pack.window_size;
-             }
+             if(ip_checksum(&pack, sizeof(PACKET)) == 0){
 
-             /* Check if packages is special flag */
-             if(pack.syn == 1 && pack.ack == 1){
-               if(rand()%drop_rate != 1){
-                  input = SYN_ACK;
-                }else{
-
-                 printf("ERROR SIMULATION: DROPPED SYN_ACK\n");
+               if(pack.window_size < MODULO/2){
+                 window = pack.window_size;
                }
 
+               /* Check if packages is special flag */
+               if(pack.syn == 1 && pack.ack == 1){
+                 if(rand()%drop_rate != 1){
+                    input = SYN_ACK;
+                  }else{
 
-             }else if(pack.fin == 1 && pack.ack == 1){
-               if(rand()%drop_rate != 1){
-                 input = FIN_ACK;
+                   printf("ERROR SIMULATION: DROPPED SYN_ACK\n");
+                 }
+
+
+               }else if(pack.fin == 1 && pack.ack == 1){
+                 if(rand()%drop_rate != 1){
+                   input = FIN_ACK;
+                 }else{
+
+                   printf("ERROR SIMULATION: DROPPED FIN_ACK\n");
+
+                 }
+
+               }else if(pack.fin == 1){
+                 if(rand()%10 != 1){
+                    input = FIN;
+                  }else{
+                   printf("ERROR SIMULATION: DROPPED FIN\n");
+
+                 }
+
+               }else if(pack.ack == 1){
+                 if(rand()%drop_rate != 1){
+                   input = ACK;
+                 }else{
+
+                   printf("ERROR SIMULATION: DROPPED ACK\n");
+                 }
+
+               }else if(pack.syn == 1){
+                 if(rand()%drop_rate != 1){
+                   input = SYN;
+                 }else{
+                   printf("ERROR SIMULATION: DROPPED SYN\n");
+                 }
                }else{
 
-                 printf("ERROR SIMULATION: DROPPED FIN_ACK\n");
+                 /* Process standard package */
 
-               }
+                   //Error simulation
+                   if(pack.seq == server_buf.seq_1 && rand()%drop_rate == 1){
+                     pack.seq = pack.seq + 1;
+                     printf("ERROR SIMULATION: PACKET [Wrong order, seq: %d -> seq:%d]\n", server_buf.seq_1, pack.seq);
+                   }
 
-             }else if(pack.fin == 1){
-               if(rand()%10 != 1){
-                  input = FIN;
-                }else{
-                 printf("ERROR SIMULATION: DROPPED FIN\n");
 
-               }
+                   if(pack.seq == server_buf.seq_1){
+                     //printf("RECIEVE PACKET: placed in server buffer\n");
+                     //printf("Data: %s\n" , pack.data);
+                     strcpy(server_buf.packet[server_buf.seq_2].data, pack.data);
+                     server_buf.packet[server_buf.seq_2].ack = pack.ack;
+                     server_buf.packet[server_buf.seq_2].fin = pack.fin;
+                     server_buf.packet[server_buf.seq_2].syn = pack.syn;
+                     server_buf.packet[server_buf.seq_2].sum = pack.sum;
+                     server_buf.packet[server_buf.seq_2].seq = pack.seq;
+                     server_buf.seq_2 = next_seq(server_buf.seq_2);
+                   }else{
+                     printf("RCVD: PACKET [Wrong order, seq: %d]\n", pack.seq);
+                     //printf("ERROR: Packet out of order [SEQ: %d] (pack.seq:%d != server_buf.seq_1:%d)\n", pack.seq, pack.seq, server_buf.seq_1);
+                     re_ack = 1;
+                   }
 
-             }else if(pack.ack == 1){
-               if(rand()%drop_rate != 1){
-                 input = ACK;
-               }else{
-
-                 printf("ERROR SIMULATION: DROPPED ACK\n");
-               }
-
-             }else if(pack.syn == 1){
-               if(rand()%drop_rate != 1){
-                 input = SYN;
-               }else{
-                 printf("ERROR SIMULATION: DROPPED SYN\n");
                }
              }else{
-
-               /* Process standard package */
-               if(ip_checksum(&pack, sizeof(PACKET)) == 0){
-
-
-                 //Error simulation
-                 if(pack.seq == server_buf.seq_1 && rand()%drop_rate == 1){
-                   pack.seq = pack.seq + 1;
-                   printf("ERROR SIMULATION: PACKET [Wrong order, seq: %d -> seq:%d]\n", server_buf.seq_1, pack.seq);
-                 }
-
-
-                 if(pack.seq == server_buf.seq_1){
-                   //printf("RECIEVE PACKET: placed in server buffer\n");
-                   //printf("Data: %s\n" , pack.data);
-                   strcpy(server_buf.packet[server_buf.seq_2].data, pack.data);
-                   server_buf.packet[server_buf.seq_2].ack = pack.ack;
-                   server_buf.packet[server_buf.seq_2].fin = pack.fin;
-                   server_buf.packet[server_buf.seq_2].syn = pack.syn;
-                   server_buf.packet[server_buf.seq_2].sum = pack.sum;
-                   server_buf.packet[server_buf.seq_2].seq = pack.seq;
-                   server_buf.seq_2 = next_seq(server_buf.seq_2);
-                 }else{
-                   printf("RCVD: PACKET [Wrong order, seq: %d]\n", pack.seq);
-                   //printf("ERROR: Packet out of order [SEQ: %d] (pack.seq:%d != server_buf.seq_1:%d)\n", pack.seq, pack.seq, server_buf.seq_1);
-                   re_ack = 1;
-                 }
-               }else{
-                 printf("RCVD: PACKET [Invalid checksum]\n");
-               }
+               printf("RCVD: PACKET [Invalid checksum]: %d\n", pack.sum);
              }
          }
          return NULL;
@@ -371,7 +377,7 @@
          {
 
              /* Kill thread if machine stops */
-             if(state == TIME_WAIT){
+             if(state == EXITING){
                return NULL;
              }
 
@@ -385,37 +391,43 @@
                  exit(EXIT_FAILURE);
              }
 
-             if(ack.window_size > 0){
-               window = ack.window_size;
-             }
+             if(ip_checksum(&ack, sizeof(PACKET)) == 0){
+               if(ack.window_size > 0){
+                 window = ack.window_size;
+               }
 
-             if(rand()%drop_rate != 1){
-               //printf("DID NOT DROP FLAG\n");
-               /* Handle special flags */
-               if(ack.syn == 1 && ack.ack == 1){
-                 input = SYN_ACK;
-               }else if(ack.fin == 1 && ack.ack == 1){
-                 input = FIN_ACK;
-               }else if(ack.fin == 1){
-                 input = FIN;
-               }else if(ack.ack == 1 && ack.seq == -1){
-                 input = ACK;
-               }else if(ack.syn == 1){
-                 input = SYN;
+               if(rand()%drop_rate != 1){
+                 //printf("DID NOT DROP FLAG\n");
+                 /* Handle special flags */
+                 if(ack.syn == 1 && ack.ack == 1){
+                   input = SYN_ACK;
+                 }else if(ack.fin == 1 && ack.ack == 1){
+                   input = FIN_ACK;
+                 }else if(ack.fin == 1){
+                   input = FIN;
+                 }else if(ack.ack == 1 && ack.seq == -1){
+                   input = ACK;
+                 }else if(ack.syn == 1){
+                   input = SYN;
+                 }else{
+                   /* Handle normal seq. acks */
+                   //printf("RECV ACK: %d\n", ack.seq);
+                   strcpy(ack_buf.packet[ack_buf.seq_2].data, ack.data);
+                   ack_buf.packet[ack_buf.seq_2].ack = ack.ack;
+                   ack_buf.packet[ack_buf.seq_2].fin = ack.fin;
+                   ack_buf.packet[ack_buf.seq_2].syn = ack.syn;
+                   ack_buf.packet[ack_buf.seq_2].sum = ack.sum;
+                   ack_buf.packet[ack_buf.seq_2].seq = ack.seq;
+                   ack_buf.seq_2 = next_seq(ack_buf.seq_2);
+                 }
                }else{
-                 /* Handle normal seq. acks */
-                 //printf("RECV ACK: %d\n", ack.seq);
-                 strcpy(ack_buf.packet[ack_buf.seq_2].data, ack.data);
-                 ack_buf.packet[ack_buf.seq_2].ack = ack.ack;
-                 ack_buf.packet[ack_buf.seq_2].fin = ack.fin;
-                 ack_buf.packet[ack_buf.seq_2].syn = ack.syn;
-                 ack_buf.packet[ack_buf.seq_2].sum = ack.sum;
-                 ack_buf.packet[ack_buf.seq_2].seq = ack.seq;
-                 ack_buf.seq_2 = next_seq(ack_buf.seq_2);
+                 printf("ERROR SIMULATION: FLAG PACKET DROPPED [seq: %d, ack: %d, syn: %d, fin: %d]\n",ack.seq, ack.ack, ack.syn, ack.fin);
                }
              }else{
-               printf("ERROR SIMULATION: FLAG PACKET DROPPED [seq: %d, ack: %d, syn: %d, fin: %d]\n",ack.seq, ack.ack, ack.syn, ack.fin);
+               printf("ERROR: Invalid checksum\n");
              }
+
+
 
 
          }
@@ -543,7 +555,7 @@
 
      void OUT_send_packet(PACKET p){
        //printf("OUT: send packet; DATA = %s;\n", p.data);
-       printf("SENT: PACKET [SEQ:%d, DATA:%s]\n", p.seq, p.data);
+       printf("SENT: PACKET [SEQ:%d, DATA:%.*s]\n", p.seq, PACKET_DATA_SIZE, p.data);
        /* ERROR SIMULATION */
        p.sum = 0;
        p.sum = ip_checksum(&p, sizeof(PACKET));
@@ -810,7 +822,7 @@
 
                          //printf("ESTABLISHED_SERVER >> new packet\n");
                          (*process_data)(server_buf.packet[server_buf.seq_1].data);
-                         printf("RCVD: PACKET [SEQ: %d, DATA: %s];\n", server_buf.packet[server_buf.seq_1].seq, server_buf.packet[server_buf.seq_1].data);
+                         printf("RCVD: PACKET [SEQ: %d, DATA: %.*s];\n", server_buf.packet[server_buf.seq_1].seq, PACKET_DATA_SIZE, server_buf.packet[server_buf.seq_1].data);
                          //printf("SENT: ACK [SEQ: %d]\n", server_buf.packet[server_buf.seq_1].seq);
                          OUT_send_ack(server_buf.packet[server_buf.seq_1].seq);
                          server_buf.seq_1 = next_seq(server_buf.seq_1);

@@ -18,14 +18,12 @@
   /* ==================== */
 
   void processData(char* data){
-    printf("<<%s>>\n", data);
+    printf("<<%.*s>>\n", PACKET_DATA_SIZE, data);
   }
 
   /* MAIN */
   /* ==== */
   int main(int argc, char *argv[]){
-
-
 
     if(argc >= 2){
       /* START AS SERVER */
@@ -38,9 +36,13 @@
           u_set_rcvr(&processData);
           //Start listening to connection
           u_start_recieving();
+          sleep(25);
+          //Shut down threads
+          u_exit();
           while(state != EXITING){
             getchar();
           }
+
 
       }else if(!strcmp(argv[1], "client")){
           /* START AS CLIENT */

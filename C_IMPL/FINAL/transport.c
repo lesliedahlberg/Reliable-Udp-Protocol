@@ -26,7 +26,7 @@
          /* No acks sent yet */
          first_ack = 1;
          re_ack = 0;
-         drop_rate = 4;
+         drop_rate = 1000000000;
 
          /* Buffer setup*/
          server_buf.seq_0 = 0; //Not used
